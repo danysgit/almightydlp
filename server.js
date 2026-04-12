@@ -14,7 +14,7 @@ const downloadTokenSecret = await loadDownloadTokenSecret();
 const config = {
   port: Number(process.env.PORT || 3000),
   host: process.env.HOST || "0.0.0.0",
-  appTitle: process.env.APP_TITLE || "AllMightyDLP",
+  appTitle: process.env.APP_TITLE || "AlmightyDLP",
   baseUrl: (process.env.BASE_URL || "").trim(),
   ytDlpBinary: process.env.YTDLP_BINARY || "yt-dlp",
   ffmpegBinary: process.env.FFMPEG_BINARY || "ffmpeg",
@@ -613,7 +613,7 @@ function authGuard(req, res, next) {
   const authHeader = req.headers.authorization || "";
 
   if (!authHeader.startsWith("Basic ")) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="AllMightyDLP"');
+    res.setHeader("WWW-Authenticate", 'Basic realm="AlmightyDLP"');
     return res.status(401).send("Authentication required.");
   }
 
@@ -624,7 +624,7 @@ function authGuard(req, res, next) {
   const password = separatorIndex >= 0 ? decoded.slice(separatorIndex + 1) : "";
 
   if (username !== config.authUsername || password !== config.authPassword) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="AllMightyDLP"');
+    res.setHeader("WWW-Authenticate", 'Basic realm="AlmightyDLP"');
     return res.status(401).send("Invalid credentials.");
   }
 

@@ -1,14 +1,14 @@
 services:
-  allmightydlp:
+  almightydlp:
     build:
       context: .
-    container_name: allmightydlp
+    container_name: almightydlp
     ports:
       - "${PORT:-3000}:3000"
     environment:
       PORT: 3000
       HOST: 0.0.0.0
-      APP_TITLE: ${APP_TITLE:-AllMightyDLP}
+      APP_TITLE: ${APP_TITLE:-AlmightyDLP}
       BASE_URL: ${BASE_URL:-}
       APPDATA_DIR: ${APPDATA_DIR:-/config}
       FFMPEG_BINARY: ${FFMPEG_BINARY:-ffmpeg}

@@ -1,8 +1,8 @@
-![AllMightyDLP icon](public/icon.png)
+![AlmightyDLP icon](public/icon.png)
 
-# AllMightyDLP
+# AlmightyDLP
 
-AllMightyDLP is a self-hosted web app powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Paste a supported media link, choose what you want to save, and get direct links or download-ready results in a simple mobile-friendly interface.
+AlmightyDLP is a self-hosted web app powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Paste a supported media link, choose what you want to save, and get direct links or download-ready results in a simple mobile-friendly interface.
 
 ## What it is for
 
@@ -27,9 +27,9 @@ docker compose up --build
 
 ## Unraid
 
-- Unraid image: `ghcr.io/danysgit/allmightydlp:latest`
-- Package page: [ghcr.io/danysgit/allmightydlp](https://github.com/danysgit/allmightydlp/pkgs/container/allmightydlp)
-- Unraid template: [allmightydlp.xml](https://raw.githubusercontent.com/danysgit/allmightydlp/main/unraid/allmightydlp.xml)
+- Unraid image: `ghcr.io/danysgit/almightydlp:latest`
+- Package page: [ghcr.io/danysgit/almightydlp](https://github.com/danysgit/almightydlp/pkgs/container/almightydlp)
+- Unraid template: [almightydlp.xml](https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/almightydlp.xml)
 
 The Unraid template supports:
 
@@ -44,7 +44,7 @@ The Unraid template supports:
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP listener port |
 | `HOST` | `0.0.0.0` | HTTP bind address |
-| `APP_TITLE` | `AllMightyDLP` | Visible app name |
+| `APP_TITLE` | `AlmightyDLP` | Visible app name |
 | `BASE_URL` | empty | Optional absolute base URL for generated links |
 | `APPDATA_DIR` | `/config` in containers, `./data` locally | Persistent app data root |
 | `YTDLP_BINARY` | `yt-dlp` | yt-dlp executable path |

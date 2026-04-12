@@ -21,7 +21,7 @@ const fallbackText = document.querySelector("#fallback-text");
 const copyWrap = document.querySelector("#copy-wrap");
 const copyButton = document.querySelector("#copy-button");
 
-const ACTIVE_JOB_KEY = "allmightydlp-active-job";
+const ACTIVE_JOB_KEY = "almightydlp-active-job";
 let latestCopyText = "";
 let workingTimer = 0;
 let pollTimer = 0;
