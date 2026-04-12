@@ -26,6 +26,7 @@ let latestCopyText = "";
 let workingTimer = 0;
 let pollTimer = 0;
 let activeJobId = "";
+let reconnectAttempts = 0;
 
 copyButton.addEventListener("click", () => copyLinks());
 profile.addEventListener("change", () => updateProfileHint());
@@ -53,6 +54,7 @@ async function startResolve() {
 
   stopPolling();
   clearResults();
+  reconnectAttempts = 0;
   setBusy(resolveButton, true, "Getting links...");
   scheduleWorkingState("Getting your links. Playlists can take a little longer.");
 
@@ -81,13 +83,17 @@ async function startResolve() {
 async function pollJob(jobId) {
   try {
     const response = await fetch(`/api/jobs/${jobId}`);
-    const payload = await response.json();
+    const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error("REQUEST_MISSING");
+      }
       throw new Error(payload.error || "Could not load this job.");
     }
 
     const job = payload.job;
+    reconnectAttempts = 0;
 
     if (job.status === "queued" || job.status === "running") {
       showWorkingState("Getting your links. Playlists can take a little longer.");
@@ -110,8 +116,27 @@ async function pollJob(jobId) {
     }
     renderResult(job.result);
   } catch (error) {
+    if (error.message === "REQUEST_MISSING") {
+      stopPolling();
+      hideWorkingState();
+      clearActiveJob();
+      setBusy(resolveButton, false, "Get download links");
+      renderFailure("The last request was interrupted by a restart. Please try again.");
+      return;
+    }
+
     if (document.hidden) {
       schedulePoll(jobId, 2500);
+      return;
+    }
+
+    reconnectAttempts += 1;
+    if (reconnectAttempts >= 8) {
+      stopPolling();
+      hideWorkingState();
+      clearActiveJob();
+      setBusy(resolveButton, false, "Get download links");
+      renderFailure("We lost the connection while getting your links. Please try again.");
       return;
     }
 
@@ -136,6 +161,7 @@ function stopPolling() {
 
 function clearActiveJob() {
   activeJobId = "";
+  reconnectAttempts = 0;
   localStorage.removeItem(ACTIVE_JOB_KEY);
 }
 
