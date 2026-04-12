@@ -31,6 +31,17 @@ docker compose up --build
 - Package page: [ghcr.io/danysgit/almightydlp](https://github.com/danysgit/almightydlp/pkgs/container/almightydlp)
 - Unraid template: [almightydlp.xml](https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/almightydlp.xml)
 
+Create or refresh the user template on Unraid with:
+
+```bash
+rm -f /boot/config/plugins/dockerMan/templates-user/Almightydlp.xml \
+  /boot/config/plugins/dockerMan/templates-user/almightydlp.xml && \
+curl -fsSL https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/almightydlp.xml \
+  -o /boot/config/plugins/dockerMan/templates-user/almightydlp.xml
+```
+
+After that, go to `Docker` -> `Add Container` and select `almightydlp` from `User templates`.
+
 The Unraid template supports:
 
 - editable host port mapping for the web UI
