@@ -3,28 +3,21 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#1f2db2">
+    <meta name="theme-color" content="#080808">
     <title>AllMightyDLP</title>
     <link rel="icon" type="image/png" href="/icon.png">
+    <link rel="apple-touch-icon" href="/icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <div class="shell">
-      <header class="hero">
-        <img class="hero__icon" src="/icon.png" alt="AllMightyDLP icon">
-        <div class="hero__copy">
-          <p class="eyebrow">Single-user secure resolver</p>
-          <h1>Resolve media links without turning the app into a downloader.</h1>
-          <p class="lede">
-            Paste a supported URL, inspect the source, and get direct media links when the site exposes them. For playlists, copy every resolved link at once into your download manager.
-          </p>
-        </div>
-      </header>
-
       <main class="panel">
         <form id="resolver-form" class="stack">
           <label class="field">
-            <span>Media URL</span>
+            <span>Paste a link</span>
             <input
               id="media-url"
               name="url"
@@ -36,26 +29,29 @@
             >
           </label>
 
-          <div class="split">
-            <label class="field">
-              <span>Resolve mode</span>
-              <select id="profile" name="profile">
-                <option value="video">Single-file video links</option>
-                <option value="audio">Audio-only links</option>
-                <option value="original">Best direct source link</option>
-              </select>
-            </label>
+          <label class="field">
+            <span>Choose what to save</span>
+            <select id="profile" name="profile">
+              <option value="video">Video with sound</option>
+              <option value="audio">Just the audio</option>
+              <option value="original">Whichever link works best</option>
+            </select>
+            <p class="field__hint" id="profile-hint">Best for saving the full video.</p>
+          </label>
 
-            <div class="actions">
-              <button class="button button--ghost" type="button" id="inspect-button">Inspect</button>
-              <button class="button" type="submit" id="resolve-button">Resolve links</button>
-            </div>
+          <div class="actions actions--bottom">
+            <button class="button" type="submit" id="resolve-button">Get download links</button>
           </div>
         </form>
 
+        <section class="status" id="working-state" hidden aria-live="polite">
+          <div class="status__spinner" aria-hidden="true"></div>
+          <p id="working-text">Getting your links. Playlists can take a little longer.</p>
+        </section>
+
         <section class="card" id="inspection-card" hidden>
           <div class="card__head">
-            <h2>Source</h2>
+            <h2>What we found</h2>
             <span class="pill" id="inspection-type">Media</span>
           </div>
           <div class="inspection">
@@ -70,21 +66,17 @@
 
         <section class="card" id="result-card" hidden>
           <div class="card__head">
-            <h2>Resolved links</h2>
+            <h2>Your links</h2>
             <span class="pill" id="result-status">Ready</span>
           </div>
 
           <div class="job-meta">
-            <strong id="result-title">Resolved media</strong>
-            <p id="result-copy">Direct links will appear here.</p>
+            <strong id="result-title">Your media is ready</strong>
+            <p id="result-copy">Your links will appear here.</p>
           </div>
 
           <div class="copy-wrap" id="copy-wrap" hidden>
-            <label class="field">
-              <span>Copy-ready link list</span>
-              <textarea id="copy-field" rows="7" readonly spellcheck="false"></textarea>
-            </label>
-            <button class="button button--ghost" type="button" id="copy-button">Copy all</button>
+            <button class="button button--ghost" type="button" id="copy-button">Copy all links to clipboard</button>
           </div>
 
           <div class="results" id="result-list"></div>
@@ -92,8 +84,8 @@
 
         <section class="card card--warning" id="fallback-card" hidden>
           <div class="card__head">
-            <h2>Fallback note</h2>
-            <span class="pill pill--warning">Backend required</span>
+            <h2>Heads up</h2>
+            <span class="pill pill--warning">Not available as a simple link</span>
           </div>
           <p id="fallback-text"></p>
         </section>

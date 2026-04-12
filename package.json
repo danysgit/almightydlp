@@ -1,9 +1,17 @@
 {
   "name": "allmightydlp",
   "version": "0.1.0",
-  "description": "Self-hosted yt-dlp web app for on-demand media downloads",
-  "private": true,
+  "description": "Self-hosted yt-dlp web app for direct links and download-ready media results",
+  "private": false,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danysgit/allmightydlp.git"
+  },
+  "homepage": "https://github.com/danysgit/allmightydlp",
+  "bugs": {
+    "url": "https://github.com/danysgit/allmightydlp/issues"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"

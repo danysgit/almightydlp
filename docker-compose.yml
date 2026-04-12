@@ -10,11 +10,19 @@ services:
       HOST: 0.0.0.0
       APP_TITLE: ${APP_TITLE:-AllMightyDLP}
       BASE_URL: ${BASE_URL:-}
+      APPDATA_DIR: ${APPDATA_DIR:-/config}
+      FFMPEG_BINARY: ${FFMPEG_BINARY:-ffmpeg}
       ALLOW_PLAYLISTS: ${ALLOW_PLAYLISTS:-true}
       DEFAULT_PROFILE: ${DEFAULT_PROFILE:-video}
       AUTH_USERNAME: ${AUTH_USERNAME:-}
       AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      COOKIE_FILE: ${COOKIE_FILE:-/config/cookies/cookies.txt}
+      TEMP_DIR: ${TEMP_DIR:-/config/tmp}
+      CLEANUP_AFTER_MINUTES: ${CLEANUP_AFTER_MINUTES:-180}
+      DOWNLOAD_TOKEN_SECRET: ${DOWNLOAD_TOKEN_SECRET:-}
       PUID: ${PUID:-99}
       PGID: ${PGID:-100}
       UMASK: ${UMASK:-002}
+    volumes:
+      - ./data:/config
     restart: unless-stopped

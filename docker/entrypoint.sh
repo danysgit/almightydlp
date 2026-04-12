@@ -7,6 +7,8 @@ APP_UID="${PUID:-99}"
 APP_GID="${PGID:-100}"
 APP_UMASK="${UMASK:-002}"
 
+mkdir -p /config /config/cookies /config/tmp
+
 if getent group "${APP_GROUP}" >/dev/null 2>&1; then
   groupmod -o -g "${APP_GID}" "${APP_GROUP}"
 else
@@ -20,6 +22,7 @@ else
 fi
 
 chown -R "${APP_UID}:${APP_GID}" /app
+chown -R "${APP_UID}:${APP_GID}" /config
 umask "${APP_UMASK}"
 
 exec gosu "${APP_UID}:${APP_GID}" "$@"

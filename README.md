@@ -1,15 +1,14 @@
+![AllMightyDLP icon](public/icon.png)
+
 # AllMightyDLP
 
-AllMightyDLP is a self-hosted web frontend for [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Users paste a supported media URL, inspect the source, and resolve direct media links when the site exposes them.
+AllMightyDLP is a self-hosted web app powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Paste a supported media link, choose what you want to save, and get direct links or download-ready results in a simple mobile-friendly interface.
 
-## What is included
+## What it is for
 
-- Responsive mobile-first UI tuned for Safari on iPhone and iPad
-- Single-user, security-conscious link resolver flow
-- Direct media link extraction for supported single files and playlists
-- Copy-ready playlist output for download managers
-- Inspect endpoint for basic media metadata before downloading
-- Unraid template with WebUI, port, paths, and common variables
+- turning supported video and audio posts into saveable links
+- handling playlists and giving you a copy-ready list of links
+- self-hosting on Docker or Unraid with a lightweight setup
 
 ## Quick start
 
@@ -18,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Docker
 
@@ -26,35 +25,44 @@ Open `http://localhost:3000`.
 docker compose up --build
 ```
 
+## Unraid
+
+- Unraid image: `ghcr.io/danysgit/allmightydlp:latest`
+- Package page: [ghcr.io/danysgit/allmightydlp](https://github.com/danysgit/allmightydlp/pkgs/container/allmightydlp)
+- Unraid template: [allmightydlp.xml](https://raw.githubusercontent.com/danysgit/allmightydlp/main/unraid/allmightydlp.xml)
+
+The Unraid template supports:
+
+- editable host port mapping for the web UI
+- direct `WebUI` launch from the Docker right-click menu
+- persistent `/config` storage for temp files, cookies, and generated secrets
+- optional Basic Auth and cookies.txt support
+
 ## Environment variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PORT` | `3000` | HTTP listener port |
 | `HOST` | `0.0.0.0` | HTTP bind address |
-| `APP_TITLE` | `AllMightyDLP` | Branded UI title |
-| `BASE_URL` | empty | Optional absolute base URL for generated download links |
+| `APP_TITLE` | `AllMightyDLP` | Visible app name |
+| `BASE_URL` | empty | Optional absolute base URL for generated links |
+| `APPDATA_DIR` | `/config` in containers, `./data` locally | Persistent app data root |
 | `YTDLP_BINARY` | `yt-dlp` | yt-dlp executable path |
-| `ALLOW_PLAYLISTS` | `true` | Enable playlist downloads |
-| `DEFAULT_PROFILE` | `video` | Default UI selection |
+| `FFMPEG_BINARY` | `ffmpeg` | ffmpeg path for merged downloads |
+| `ALLOW_PLAYLISTS` | `true` | Enable playlist handling |
+| `DEFAULT_PROFILE` | `video` | Default UI save mode |
 | `AUTH_USERNAME` | empty | Optional Basic Auth username |
 | `AUTH_PASSWORD` | empty | Optional Basic Auth password |
-| `PUID` | `99` | Container user id for Unraid permission alignment |
-| `PGID` | `100` | Container group id for Unraid permission alignment |
-| `UMASK` | `002` | File creation mask inside the container |
-
-## Unraid
-
-An Unraid template is included at `unraid/allmightydlp.xml`. Before publishing it, replace the placeholder GitHub and registry URLs with your real repository and container image.
-
-The template already includes:
-
-- `WebUI` integration for the Docker right-click menu
-- port mapping for the app on `3000`
-- lightweight AppData path
-- advanced variables for playlists, branding, and optional auth
+| `COOKIE_FILE` | `/config/cookies/cookies.txt` | Optional cookies file path |
+| `TEMP_DIR` | `/config/tmp` | Temporary workspace |
+| `CLEANUP_AFTER_MINUTES` | `180` | Finished job cleanup window |
+| `DOWNLOAD_TOKEN_SECRET` | auto-generated | Optional signing secret override |
+| `PUID` | `99` | Container user id |
+| `PGID` | `100` | Container group id |
+| `UMASK` | `002` | File creation mask |
 
 ## Notes
 
-- This project intentionally focuses on self-hosted personal use.
-- Direct links are not always possible. Some sources expose only expiring, segmented, or split media streams, which would require backend downloading and merging to support reliably.
+- Some sites do not expose a stable single-file link, so the app may need backend processing before it can hand back a saveable file.
+- Some sources, especially protected or rate-limited ones, may require a `cookies.txt` file.
+- If the container image or package links change later, this README should be updated to keep the Unraid install links current.
