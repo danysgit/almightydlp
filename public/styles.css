@@ -418,6 +418,25 @@ select:focus,
   border-radius: 16px;
 }
 
+.site-footer {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+}
+
+.site-footer a {
+  color: rgba(231, 229, 228, 0.55);
+  text-decoration: none;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  transition: color 120ms ease;
+}
+
+.site-footer a:hover,
+.site-footer a:focus-visible {
+  color: rgba(231, 229, 228, 0.82);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
