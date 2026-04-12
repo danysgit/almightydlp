@@ -13,16 +13,16 @@
       <header class="hero">
         <img class="hero__icon" src="/icon.png" alt="AllMightyDLP icon">
         <div class="hero__copy">
-          <p class="eyebrow">Self-hosted media fetcher</p>
-          <h1>Paste a link. Get downloadable media back.</h1>
+          <p class="eyebrow">Single-user secure resolver</p>
+          <h1>Resolve media links without turning the app into a downloader.</h1>
           <p class="lede">
-            AllMightyDLP wraps <code>yt-dlp</code> in a fast, mobile-friendly web app for personal self-hosted downloads.
+            Paste a supported URL, inspect the source, and get direct media links when the site exposes them. For playlists, copy every resolved link at once into your download manager.
           </p>
         </div>
       </header>
 
       <main class="panel">
-        <form id="download-form" class="stack">
+        <form id="resolver-form" class="stack">
           <label class="field">
             <span>Media URL</span>
             <input
@@ -38,17 +38,17 @@
 
           <div class="split">
             <label class="field">
-              <span>Download mode</span>
+              <span>Resolve mode</span>
               <select id="profile" name="profile">
-                <option value="video">Best video + audio</option>
-                <option value="audio">Audio only (MP3)</option>
-                <option value="original">Best original stream</option>
+                <option value="video">Single-file video links</option>
+                <option value="audio">Audio-only links</option>
+                <option value="original">Best direct source link</option>
               </select>
             </label>
 
             <div class="actions">
               <button class="button button--ghost" type="button" id="inspect-button">Inspect</button>
-              <button class="button" type="submit" id="submit-button">Start download</button>
+              <button class="button" type="submit" id="resolve-button">Resolve links</button>
             </div>
           </div>
         </form>
@@ -68,24 +68,34 @@
           </div>
         </section>
 
-        <section class="card" id="job-card" hidden>
+        <section class="card" id="result-card" hidden>
           <div class="card__head">
-            <h2>Download job</h2>
-            <span class="pill" id="job-status">Queued</span>
+            <h2>Resolved links</h2>
+            <span class="pill" id="result-status">Ready</span>
           </div>
 
           <div class="job-meta">
-            <strong id="job-title">Preparing download…</strong>
-            <p id="job-copy">Your links will appear here as soon as yt-dlp finishes.</p>
+            <strong id="result-title">Resolved media</strong>
+            <p id="result-copy">Direct links will appear here.</p>
           </div>
 
-          <div class="results results--actions" id="result-actions"></div>
-          <div class="results" id="results"></div>
+          <div class="copy-wrap" id="copy-wrap" hidden>
+            <label class="field">
+              <span>Copy-ready link list</span>
+              <textarea id="copy-field" rows="7" readonly spellcheck="false"></textarea>
+            </label>
+            <button class="button button--ghost" type="button" id="copy-button">Copy all</button>
+          </div>
 
-          <details class="logs">
-            <summary>Processing log</summary>
-            <pre id="job-log"></pre>
-          </details>
+          <div class="results" id="result-list"></div>
+        </section>
+
+        <section class="card card--warning" id="fallback-card" hidden>
+          <div class="card__head">
+            <h2>Fallback note</h2>
+            <span class="pill pill--warning">Backend required</span>
+          </div>
+          <p id="fallback-text"></p>
         </section>
       </main>
     </div>

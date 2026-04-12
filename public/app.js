@@ -1,29 +1,30 @@
-const form = document.querySelector("#download-form");
+const form = document.querySelector("#resolver-form");
 const mediaUrl = document.querySelector("#media-url");
 const profile = document.querySelector("#profile");
 const inspectButton = document.querySelector("#inspect-button");
-const submitButton = document.querySelector("#submit-button");
+const resolveButton = document.querySelector("#resolve-button");
 const inspectionCard = document.querySelector("#inspection-card");
 const inspectionType = document.querySelector("#inspection-type");
 const inspectionTitle = document.querySelector("#inspection-title");
 const inspectionSubtitle = document.querySelector("#inspection-subtitle");
 const inspectionThumb = document.querySelector("#inspection-thumb");
 const inspectionLink = document.querySelector("#inspection-link");
-const jobCard = document.querySelector("#job-card");
-const jobStatus = document.querySelector("#job-status");
-const jobTitle = document.querySelector("#job-title");
-const jobCopy = document.querySelector("#job-copy");
-const resultActions = document.querySelector("#result-actions");
-const results = document.querySelector("#results");
-const jobLog = document.querySelector("#job-log");
-
-let activeJobId = "";
-let pollHandle = 0;
+const resultCard = document.querySelector("#result-card");
+const resultStatus = document.querySelector("#result-status");
+const resultTitle = document.querySelector("#result-title");
+const resultCopy = document.querySelector("#result-copy");
+const resultList = document.querySelector("#result-list");
+const fallbackCard = document.querySelector("#fallback-card");
+const fallbackText = document.querySelector("#fallback-text");
+const copyWrap = document.querySelector("#copy-wrap");
+const copyField = document.querySelector("#copy-field");
+const copyButton = document.querySelector("#copy-button");
 
 inspectButton.addEventListener("click", () => inspectUrl());
+copyButton.addEventListener("click", () => copyLinks());
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  startDownload();
+  resolveLinks();
 });
 
 async function inspectUrl() {
@@ -33,7 +34,7 @@ async function inspectUrl() {
     return;
   }
 
-  setBusy(inspectButton, true, "Inspecting…");
+  setBusy(inspectButton, true, "Inspecting...");
 
   try {
     const response = await fetch("/api/analyze", {
@@ -55,24 +56,18 @@ async function inspectUrl() {
   }
 }
 
-async function startDownload() {
+async function resolveLinks() {
   const url = mediaUrl.value.trim();
   if (!url) {
     mediaUrl.focus();
     return;
   }
 
-  setBusy(submitButton, true, "Queueing…");
-  clearPolling();
-  renderJobState({
-    status: "queued",
-    title: "Preparing download…",
-    log: ["Job queued."],
-    files: []
-  });
+  setBusy(resolveButton, true, "Resolving...");
+  clearResults();
 
   try {
-    const response = await fetch("/api/download", {
+    const response = await fetch("/api/resolve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, profile: profile.value })
@@ -80,56 +75,37 @@ async function startDownload() {
     const payload = await response.json();
 
     if (!response.ok) {
-      throw new Error(payload.error || "Download could not be started.");
+      throw new Error(payload.error || "Link resolution failed.");
     }
 
-    activeJobId = payload.job.id;
-    renderJobState(payload.job);
-    pollHandle = window.setInterval(pollJob, 1800);
-    pollJob();
+    renderResult(payload.result);
   } catch (error) {
-    renderJobState({
-      status: "failed",
-      title: "Unable to start download",
-      log: [error.message],
-      files: []
-    });
+    renderFailure(error.message);
   } finally {
-    setBusy(submitButton, false, "Start download");
+    setBusy(resolveButton, false, "Resolve links");
   }
 }
 
-async function pollJob() {
-  if (!activeJobId) {
+async function copyLinks() {
+  if (!copyField.value) {
     return;
   }
 
   try {
-    const response = await fetch(`/api/jobs/${activeJobId}`);
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload.error || "Unable to load job.");
-    }
-
-    renderJobState(payload.job);
-
-    if (["completed", "failed"].includes(payload.job.status)) {
-      clearPolling();
-    }
-  } catch (error) {
-    clearPolling();
-    renderJobState({
-      status: "failed",
-      title: "Polling stopped",
-      log: [error.message],
-      files: []
-    });
+    await navigator.clipboard.writeText(copyField.value);
+    copyButton.textContent = "Copied";
+    window.setTimeout(() => {
+      copyButton.textContent = "Copy all";
+    }, 1400);
+  } catch {
+    copyField.focus();
+    copyField.select();
   }
 }
 
 function renderInspection(metadata) {
   inspectionCard.hidden = false;
-  inspectionType.textContent = metadata.isPlaylist ? `Playlist • ${metadata.itemCount} items` : "Media";
+  inspectionType.textContent = metadata.isPlaylist ? `Playlist • ${metadata.itemCount} items` : "Single item";
   inspectionTitle.textContent = metadata.title || "Untitled media";
   inspectionSubtitle.textContent = [metadata.extractor, metadata.uploader, formatDuration(metadata.duration)]
     .filter(Boolean)
@@ -161,70 +137,91 @@ function renderInspectionError(message) {
   inspectionLink.hidden = true;
 }
 
-function renderJobState(job) {
-  jobCard.hidden = false;
-  jobStatus.textContent = job.status;
-  jobStatus.dataset.state = job.status;
-  jobTitle.textContent = job.title || "Preparing download…";
+function renderResult(result) {
+  resultCard.hidden = false;
+  resultStatus.textContent = result.unresolvedCount > 0 ? "Partial" : "Ready";
+  resultStatus.dataset.state = result.unresolvedCount > 0 ? "partial" : "completed";
+  resultTitle.textContent = result.source.title || "Resolved media";
+  resultCopy.textContent = `${result.resolvedCount} direct link${result.resolvedCount === 1 ? "" : "s"} available${result.unresolvedCount ? `, ${result.unresolvedCount} item${result.unresolvedCount === 1 ? "" : "s"} still require backend processing.` : "."}`;
 
-  if (job.status === "completed" && job.files.length > 0) {
-    jobCopy.textContent = `${job.files.length} downloadable file${job.files.length === 1 ? "" : "s"} ready.`;
-  } else if (job.status === "failed") {
-    jobCopy.textContent = "The backend returned an error for this job.";
+  renderItems(result.items);
+  copyField.value = result.copyText || "";
+  copyWrap.hidden = !result.copyText;
+
+  if (result.fallbackSummary) {
+    fallbackCard.hidden = false;
+    fallbackText.textContent = result.fallbackSummary;
   } else {
-    jobCopy.textContent = "Your links will appear here as soon as yt-dlp finishes.";
+    fallbackCard.hidden = true;
+    fallbackText.textContent = "";
   }
-
-  renderActions(job);
-  renderResults(job.files || []);
-  jobLog.textContent = (job.log || []).join("\n");
 }
 
-function renderActions(job) {
-  resultActions.innerHTML = "";
-
-  if (!job.archiveUrl) {
-    return;
-  }
-
-  const link = document.createElement("a");
-  link.className = "result result--action";
-  link.href = job.archiveUrl;
-  link.textContent = "Download all as ZIP";
-  resultActions.append(link);
+function renderFailure(message) {
+  resultCard.hidden = false;
+  resultStatus.textContent = "Error";
+  resultStatus.dataset.state = "failed";
+  resultTitle.textContent = "Could not resolve links";
+  resultCopy.textContent = message;
+  resultList.innerHTML = "";
+  copyWrap.hidden = true;
+  copyField.value = "";
+  fallbackCard.hidden = true;
 }
 
-function renderResults(files) {
-  results.innerHTML = "";
+function clearResults() {
+  resultCard.hidden = true;
+  fallbackCard.hidden = true;
+  resultList.innerHTML = "";
+  copyField.value = "";
+}
 
-  if (!files.length) {
+function renderItems(items) {
+  resultList.innerHTML = "";
+
+  if (!items.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "No downloadable files yet.";
-    results.append(empty);
+    empty.textContent = "No items were returned.";
+    resultList.append(empty);
     return;
   }
 
-  for (const file of files) {
-    const item = document.createElement("a");
-    item.className = "result";
-    item.href = file.downloadUrl;
-    item.textContent = `${file.name} • ${formatBytes(file.sizeBytes)}`;
-    item.setAttribute("download", file.name);
-    results.append(item);
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "result";
+
+    const title = document.createElement("strong");
+    title.textContent = item.index ? `${item.index}. ${item.title}` : item.title;
+
+    const meta = document.createElement("p");
+    meta.className = "result__meta";
+    meta.textContent = [item.extractor, formatDuration(item.duration), item.formatLabel].filter(Boolean).join(" • ");
+
+    row.append(title, meta);
+
+    if (item.status === "resolved") {
+      const link = document.createElement("a");
+      link.className = "result__link";
+      link.href = item.directUrl;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = "Open direct media link";
+      row.append(link);
+    } else {
+      const reason = document.createElement("p");
+      reason.className = "result__warning";
+      reason.textContent = item.reason || "Direct link unavailable.";
+      row.append(reason);
+    }
+
+    resultList.append(row);
   }
 }
 
 function setBusy(button, busy, label) {
   button.disabled = busy;
   button.textContent = label;
-}
-
-function clearPolling() {
-  if (pollHandle) {
-    window.clearInterval(pollHandle);
-    pollHandle = 0;
-  }
 }
 
 function formatDuration(seconds) {
@@ -242,21 +239,4 @@ function formatDuration(seconds) {
   }
 
   return `${minutes}:${String(secs).padStart(2, "0")}`;
-}
-
-function formatBytes(bytes) {
-  if (!bytes) {
-    return "0 B";
-  }
-
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let index = 0;
-
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index += 1;
-  }
-
-  return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }

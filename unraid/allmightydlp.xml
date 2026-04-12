@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/your-github-user/allmightydlp/issues</Support>
   <Project>https://github.com/your-github-user/allmightydlp</Project>
-  <Overview>AllMightyDLP is a self-hosted yt-dlp web app for personal media downloads. Paste a supported URL, inspect it, and retrieve direct download links for finished files from a mobile-friendly interface.</Overview>
+  <Overview>AllMightyDLP is a self-hosted yt-dlp link resolver. Paste a supported URL, inspect the source, and retrieve direct media links when the site exposes them.</Overview>
   <Category>Downloaders:Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/your-github-user/allmightydlp/main/unraid/allmightydlp.xml</TemplateURL>
@@ -22,12 +22,8 @@
   <DonateLink/>
   <Requires/>
   <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Container port for the AllMightyDLP web interface" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
-  <Config Name="AppData" Target="/app/data" Default="" Mode="rw" Description="Persistent application state and future metadata cache" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/allmightydlp</Config>
-  <Config Name="Downloads" Target="/app/downloads" Default="" Mode="rw" Description="Completed downloads exposed by the web UI" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/downloads/allmightydlp</Config>
   <Config Name="App Title" Target="APP_TITLE" Default="AllMightyDLP" Mode="" Description="Visible app name in the web UI" Type="Variable" Display="advanced" Required="false" Mask="false">AllMightyDLP</Config>
   <Config Name="Base URL" Target="BASE_URL" Default="" Mode="" Description="Optional public base URL used to render absolute download links" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
-  <Config Name="Max Concurrent Jobs" Target="MAX_CONCURRENT_JOBS" Default="2" Mode="" Description="Maximum number of simultaneous yt-dlp jobs" Type="Variable" Display="advanced" Required="false" Mask="false">2</Config>
-  <Config Name="Cleanup Age Minutes" Target="CLEANUP_AFTER_MINUTES" Default="120" Mode="" Description="Automatically remove finished jobs and files older than this many minutes" Type="Variable" Display="advanced" Required="false" Mask="false">120</Config>
   <Config Name="Allow Playlists" Target="ALLOW_PLAYLISTS" Default="true" Mode="" Description="Set to false to force single-item downloads only" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
   <Config Name="Default Profile" Target="DEFAULT_PROFILE" Default="video" Mode="" Description="Startup selection for the UI profile picker: video, audio, or original" Type="Variable" Display="advanced" Required="false" Mask="false">video</Config>
   <Config Name="Auth Username" Target="AUTH_USERNAME" Default="" Mode="" Description="Optional Basic Auth username to protect the web interface" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>

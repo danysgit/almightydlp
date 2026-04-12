@@ -2,7 +2,3 @@ node_modules
 .DS_Store
 .env
 npm-debug.log*
-downloads/*
-data/*
-!downloads/.gitkeep
-!data/.gitkeep

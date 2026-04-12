@@ -10,11 +10,6 @@ services:
       HOST: 0.0.0.0
       APP_TITLE: ${APP_TITLE:-AllMightyDLP}
       BASE_URL: ${BASE_URL:-}
-      DATA_DIR: /app/data
-      DOWNLOAD_DIR: /app/downloads
-      TEMP_DIR: /tmp/allmightydlp
-      MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-2}
-      CLEANUP_AFTER_MINUTES: ${CLEANUP_AFTER_MINUTES:-120}
       ALLOW_PLAYLISTS: ${ALLOW_PLAYLISTS:-true}
       DEFAULT_PROFILE: ${DEFAULT_PROFILE:-video}
       AUTH_USERNAME: ${AUTH_USERNAME:-}
@@ -22,7 +17,4 @@ services:
       PUID: ${PUID:-99}
       PGID: ${PGID:-100}
       UMASK: ${UMASK:-002}
-    volumes:
-      - ./data:/app/data
-      - ./downloads:/app/downloads
     restart: unless-stopped

@@ -125,6 +125,7 @@ h1 {
 
 input,
 select,
+.copy-wrap textarea,
 .button,
 .result {
   min-height: 52px;
@@ -133,9 +134,10 @@ select,
 }
 
 input,
-select {
+select,
+.copy-wrap textarea {
   width: 100%;
-  padding: 0 16px;
+  padding: 14px 16px;
   color: var(--text);
   background: #fff;
   border: 1px solid rgba(44, 68, 146, 0.18);
@@ -144,6 +146,7 @@ select {
 
 input:focus,
 select:focus,
+.copy-wrap textarea:focus,
 .button:focus-visible,
 .result:focus-visible {
   outline: 3px solid rgba(31, 71, 214, 0.18);
@@ -256,20 +259,47 @@ select:focus,
 }
 
 .result {
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  text-decoration: none;
-  color: var(--text);
+  display: grid;
+  gap: 8px;
+  padding: 16px;
   background: white;
   border: 1px solid rgba(44, 68, 146, 0.1);
 }
 
-.result--action {
-  justify-content: center;
+.result__meta,
+.result__warning,
+.card--warning p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.result__warning {
+  color: var(--danger);
+}
+
+.result__link {
+  color: var(--accent);
+  text-decoration: none;
   font-weight: 700;
-  color: white;
-  background: linear-gradient(135deg, #1f47d6 0%, #1397c8 100%);
+}
+
+.copy-wrap {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.copy-wrap textarea {
+  min-height: 180px;
+  resize: vertical;
+  border-radius: 18px;
+  font: inherit;
+}
+
+.pill--warning,
+.pill[data-state="partial"] {
+  background: rgba(255, 184, 0, 0.16);
+  color: #9a6400;
 }
 
 .logs {
