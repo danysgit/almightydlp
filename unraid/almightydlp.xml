@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>AlmightyDLP</Name>
+  <Description>AlmightyDLP is a self-hosted yt-dlp link resolver. Paste a supported URL, inspect the source, and retrieve direct media links when the site exposes them.</Description>
   <Repository>ghcr.io/danysgit/almightydlp:latest</Repository>
   <Registry>https://github.com/danysgit/almightydlp/pkgs/container/almightydlp</Registry>
   <Network>bridge</Network>
@@ -21,6 +22,100 @@
   <DonateText/>
   <DonateLink/>
   <Requires/>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>3000</HostPort>
+        <ContainerPort>3000</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/almightydlp</HostDir>
+      <ContainerDir>/config</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+  <Environment>
+    <Variable>
+      <Value>AlmightyDLP</Value>
+      <Name>APP_TITLE</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>BASE_URL</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>/config</Value>
+      <Name>APPDATA_DIR</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>ffmpeg</Value>
+      <Name>FFMPEG_BINARY</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>true</Value>
+      <Name>ALLOW_PLAYLISTS</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>video</Value>
+      <Name>DEFAULT_PROFILE</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>AUTH_USERNAME</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>AUTH_PASSWORD</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>/config/cookies/cookies.txt</Value>
+      <Name>COOKIE_FILE</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>/config/tmp</Value>
+      <Name>TEMP_DIR</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>180</Value>
+      <Name>CLEANUP_AFTER_MINUTES</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>DOWNLOAD_TOKEN_SECRET</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>99</Value>
+      <Name>PUID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>100</Value>
+      <Name>PGID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>002</Value>
+      <Name>UMASK</Name>
+      <Mode/>
+    </Variable>
+  </Environment>
   <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Host port for the AlmightyDLP web interface. Unraid uses this mapped port for direct WebUI access from the Docker context menu." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="AppData" Target="/config" Default="/mnt/user/appdata/almightydlp" Mode="rw" Description="Persistent application data, temp workspace, optional cookies, and saved token secret" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/almightydlp</Config>
   <Config Name="App Title" Target="APP_TITLE" Default="AlmightyDLP" Mode="" Description="Visible app name in the web UI" Type="Variable" Display="advanced" Required="false" Mask="false">AlmightyDLP</Config>
