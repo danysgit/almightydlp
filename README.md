@@ -29,8 +29,7 @@ docker compose up --build
 
 - Unraid image: `ghcr.io/danysgit/almightydlp:latest`
 - Package page: [ghcr.io/danysgit/almightydlp](https://github.com/danysgit/almightydlp/pkgs/container/almightydlp)
-- Unraid template: [almightydlp.xml](https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/almightydlp.xml)
-- Manual Unraid user-template: [my-AlmightyDLP.xml](https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/manual/my-AlmightyDLP.xml)
+- Unraid user-template: [my-AlmightyDLP.xml](https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/manual/my-AlmightyDLP.xml)
 
 The Unraid template supports:
 
@@ -39,7 +38,7 @@ The Unraid template supports:
 - persistent `/config` storage for temp files, cookies, and generated secrets
 - optional Basic Auth and cookies.txt support
 
-On some Unraid `7.2.x` installs, importing the app as a `my-` user template avoids the base-template mismatch in the `Update Container` screen.
+For manual Unraid installs, use the `my-AlmightyDLP.xml` template above.
 
 ## Environment variables
 
