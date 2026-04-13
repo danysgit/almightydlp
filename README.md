@@ -4,6 +4,8 @@
 
 AlmightyDLP is a self-hosted web app powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Paste a supported media link, choose what you want to save, and get direct links or download-ready results in a simple mobile-friendly interface.
 
+Public app: [almightydlp.com](https://almightydlp.com)
+
 ## What it is for
 
 - turning supported video and audio posts into saveable links
