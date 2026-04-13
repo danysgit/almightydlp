@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>AlmightyDLP</Name>
+  <Description>AlmightyDLP is a self-hosted yt-dlp link resolver. Paste a supported URL, inspect the source, and retrieve direct media links when the site exposes them.</Description>
+  <Repository>ghcr.io/danysgit/almightydlp:latest</Repository>
+  <Registry>https://github.com/danysgit/almightydlp/pkgs/container/almightydlp</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/danysgit/almightydlp/issues</Support>
+  <Project>https://github.com/danysgit/almightydlp</Project>
+  <Overview>AlmightyDLP is a self-hosted yt-dlp link resolver. Paste a supported URL, inspect the source, and retrieve direct media links when the site exposes them.</Overview>
+  <Category>Downloaders:Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/manual/my-AlmightyDLP.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/danysgit/almightydlp/main/public/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>0</DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>3000</HostPort>
+        <ContainerPort>3000</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/almightydlp</HostDir>
+      <ContainerDir>/config</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+  <Environment>
+    <Variable>
+      <Value>AlmightyDLP</Value>
+      <Name>APP_TITLE</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>BASE_URL</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>/config</Value>
+      <Name>APPDATA_DIR</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>ffmpeg</Value>
+      <Name>FFMPEG_BINARY</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>true</Value>
+      <Name>ALLOW_PLAYLISTS</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>video</Value>
+      <Name>DEFAULT_PROFILE</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>AUTH_USERNAME</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>AUTH_PASSWORD</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>/config/cookies/cookies.txt</Value>
+      <Name>COOKIE_FILE</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>/config/tmp</Value>
+      <Name>TEMP_DIR</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>180</Value>
+      <Name>CLEANUP_AFTER_MINUTES</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>DOWNLOAD_TOKEN_SECRET</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>99</Value>
+      <Name>PUID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>100</Value>
+      <Name>PGID</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>002</Value>
+      <Name>UMASK</Name>
+      <Mode/>
+    </Variable>
+  </Environment>
+  <Config Name="WebUI Port" Target="3000" Default="3000" Mode="tcp" Description="Host port for the AlmightyDLP web interface. Unraid uses this mapped port for direct WebUI access from the Docker context menu." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="AppData" Target="/config" Default="/mnt/user/appdata/almightydlp" Mode="rw" Description="Persistent application data, temp workspace, optional cookies, and saved token secret" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/almightydlp</Config>
+  <Config Name="App Title" Target="APP_TITLE" Default="AlmightyDLP" Mode="" Description="Visible app name in the web UI" Type="Variable" Display="advanced" Required="false" Mask="false">AlmightyDLP</Config>
+  <Config Name="Base URL" Target="BASE_URL" Default="" Mode="" Description="Optional public base URL used to render absolute download links" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="AppData Dir" Target="APPDATA_DIR" Default="/config" Mode="" Description="Internal appdata path used for persistent state and generated secrets" Type="Variable" Display="advanced" Required="false" Mask="false">/config</Config>
+  <Config Name="FFmpeg Binary" Target="FFMPEG_BINARY" Default="ffmpeg" Mode="" Description="FFmpeg binary used when a site needs extra processing before saving" Type="Variable" Display="advanced" Required="false" Mask="false">ffmpeg</Config>
+  <Config Name="Allow Playlists" Target="ALLOW_PLAYLISTS" Default="true" Mode="" Description="Set to false to force single-item downloads only" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Default Profile" Target="DEFAULT_PROFILE" Default="video" Mode="" Description="Startup selection for the UI profile picker: video, audio, or original" Type="Variable" Display="advanced" Required="false" Mask="false">video</Config>
+  <Config Name="Auth Username" Target="AUTH_USERNAME" Default="" Mode="" Description="Optional Basic Auth username to protect the web interface" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Auth Password" Target="AUTH_PASSWORD" Default="" Mode="" Description="Optional Basic Auth password to protect the web interface" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cookie File" Target="COOKIE_FILE" Default="/config/cookies/cookies.txt" Mode="" Description="Optional path to a Netscape-format cookies.txt file for sites that require login access" Type="Variable" Display="advanced" Required="false" Mask="false">/config/cookies/cookies.txt</Config>
+  <Config Name="Temp Directory" Target="TEMP_DIR" Default="/config/tmp" Mode="" Description="Temporary directory used while preparing downloads" Type="Variable" Display="advanced" Required="false" Mask="false">/config/tmp</Config>
+  <Config Name="Cleanup Age Minutes" Target="CLEANUP_AFTER_MINUTES" Default="180" Mode="" Description="How long finished jobs stay in memory before cleanup" Type="Variable" Display="advanced" Required="false" Mask="false">180</Config>
+  <Config Name="Download Token Secret" Target="DOWNLOAD_TOKEN_SECRET" Default="" Mode="" Description="Optional override for the download token secret. Leave blank to auto-generate and persist one under /config." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Unraid user id for future permission alignment" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Unraid group id for future permission alignment" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="002" Mode="" Description="File creation mask inside the container" Type="Variable" Display="advanced" Required="false" Mask="false">002</Config>
+</Container>
