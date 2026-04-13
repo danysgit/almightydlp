@@ -34,13 +34,16 @@ docker compose up --build
 Create or refresh the user template on Unraid with:
 
 ```bash
-rm -f /boot/config/plugins/dockerMan/templates-user/Almightydlp.xml \
-  /boot/config/plugins/dockerMan/templates-user/almightydlp.xml && \
+rm -f /boot/config/plugins/dockerMan/templates-user/almightydlp.xml \
+  /boot/config/plugins/dockerMan/templates-user/Almightydlp.xml \
+  /boot/config/plugins/dockerMan/templates-user/my-Almightydlp.xml \
+  /boot/config/plugins/dockerMan/templates-user/AlmightyDLP.xml \
+  /boot/config/plugins/dockerMan/templates-user/my-AlmightyDLP.xml && \
 curl -fsSL https://raw.githubusercontent.com/danysgit/almightydlp/main/unraid/almightydlp.xml \
-  -o /boot/config/plugins/dockerMan/templates-user/almightydlp.xml
+  -o /boot/config/plugins/dockerMan/templates-user/AlmightyDLP.xml
 ```
 
-After that, go to `Docker` -> `Add Container` and select `almightydlp` from `User templates`.
+After that, go to `Docker` -> `Add Container` and select `AlmightyDLP` from `User templates`.
 
 The Unraid template supports:
 
@@ -48,6 +51,8 @@ The Unraid template supports:
 - direct `WebUI` launch from the Docker right-click menu
 - persistent `/config` storage for temp files, cookies, and generated secrets
 - optional Basic Auth and cookies.txt support
+
+On some Unraid `7.2.x` installs, the `Update Container` screen may briefly show template defaults instead of your saved values. The live Docker row and the saved template at `/boot/config/plugins/dockerMan/templates-user/my-AlmightyDLP.xml` are the authoritative source of truth.
 
 ## Environment variables
 
