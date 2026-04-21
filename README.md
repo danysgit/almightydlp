@@ -57,7 +57,7 @@ For manual Unraid installs, use the `my-AlmightyDLP.xml` template above.
 | `DEFAULT_PROFILE` | `video` | Default UI save mode |
 | `AUTH_USERNAME` | empty | Optional Basic Auth username |
 | `AUTH_PASSWORD` | empty | Optional Basic Auth password |
-| `COOKIE_FILE` | `/config/cookies/cookies.txt` | Optional cookies file path |
+| `COOKIE_FILE` | `/config/cookies/cookies.txt` | Optional cookies file path, used only when the file exists |
 | `TEMP_DIR` | `/config/tmp` | Temporary workspace |
 | `CLEANUP_AFTER_MINUTES` | `180` | Finished job cleanup window |
 | `DOWNLOAD_TOKEN_SECRET` | auto-generated | Optional signing secret override |
@@ -69,4 +69,5 @@ For manual Unraid installs, use the `my-AlmightyDLP.xml` template above.
 
 - Some sites do not expose a stable single-file link, so the app may need backend processing before it can hand back a saveable file.
 - Some sources, especially protected or rate-limited ones, may require a `cookies.txt` file.
+- If `COOKIE_FILE` points to a missing file, AlmightyDLP now ignores it instead of failing the request.
 - If the container image or package links change later, this README should be updated to keep the Unraid install links current.

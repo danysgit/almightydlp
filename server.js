@@ -10,6 +10,8 @@ const app = express();
 const appDataDir = await detectAppDataDir();
 const persistedSecretPath = path.join(appDataDir, "keys", "download-token.secret");
 const downloadTokenSecret = await loadDownloadTokenSecret();
+const requestedCookieFile = (process.env.COOKIE_FILE || path.join(appDataDir, "cookies", "cookies.txt")).trim();
+const cookieFile = await resolveCookieFile(requestedCookieFile);
 
 const config = {
   port: Number(process.env.PORT || 3000),
@@ -23,7 +25,8 @@ const config = {
   authUsername: process.env.AUTH_USERNAME || "",
   authPassword: process.env.AUTH_PASSWORD || "",
   appDataDir,
-  cookieFile: (process.env.COOKIE_FILE || path.join(appDataDir, "cookies", "cookies.txt")).trim(),
+  requestedCookieFile,
+  cookieFile,
   tempDir: process.env.TEMP_DIR || path.join(appDataDir, "tmp"),
   cleanupAfterMinutes: Math.max(10, Number(process.env.CLEANUP_AFTER_MINUTES || 180)),
   downloadTokenSecret
@@ -57,7 +60,8 @@ app.get("/api/health", (_req, res) => {
     title: config.appTitle,
     mode: "resolver",
     allowPlaylists: config.allowPlaylists,
-    cookieFileConfigured: Boolean(config.cookieFile)
+    cookieFileConfigured: Boolean(config.requestedCookieFile),
+    cookieFileAvailable: Boolean(config.cookieFile)
   });
 });
 
@@ -230,6 +234,19 @@ async function loadDownloadTokenSecret() {
   await fs.mkdir(path.dirname(persistedSecretPath), { recursive: true });
   await fs.writeFile(persistedSecretPath, `${generated}\n`, { mode: 0o600 });
   return generated;
+}
+
+async function resolveCookieFile(cookieFilePath) {
+  if (!cookieFilePath) {
+    return "";
+  }
+
+  try {
+    const stats = await fs.stat(cookieFilePath);
+    return stats.isFile() ? cookieFilePath : "";
+  } catch {
+    return "";
+  }
 }
 
 function resolveMetadata(metadata, profile) {
