@@ -132,10 +132,12 @@ app.get("/api/download", async (req, res) => {
     return res.status(400).send(error.message || "Invalid download token.");
   }
 
-  const tempRoot = await fs.mkdtemp(path.join(config.tempDir, "download-"));
-  const outputTemplate = path.join(tempRoot, payload.filename);
+  let tempRoot = "";
 
   try {
+    tempRoot = await createDownloadTempRoot();
+    const outputTemplate = path.join(tempRoot, payload.filename);
+
     await runCommand(config.ytDlpBinary, buildDownloadArgs(payload, outputTemplate), {
       captureStdout: false
     });
@@ -157,7 +159,9 @@ app.get("/api/download", async (req, res) => {
 
     return res.download(absolutePath, resolvedFile);
   } catch (error) {
-    await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+    if (tempRoot) {
+      await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+    }
     return res.status(502).send(error.message || "Could not fetch this file.");
   }
 });
@@ -247,6 +251,11 @@ async function resolveCookieFile(cookieFilePath) {
   } catch {
     return "";
   }
+}
+
+async function createDownloadTempRoot() {
+  await fs.mkdir(config.tempDir, { recursive: true });
+  return fs.mkdtemp(path.join(config.tempDir, "download-"));
 }
 
 function resolveMetadata(metadata, profile) {
