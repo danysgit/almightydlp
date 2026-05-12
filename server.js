@@ -284,6 +284,7 @@ function resolveEntry(entry, profile, index) {
   const progressiveFormats = formats.filter((format) => isUsableUrl(format.url) && hasAudioAndVideo(format));
   const audioFormats = formats.filter((format) => isUsableUrl(format.url) && isAudioOnly(format));
   const videoOnlyFormats = formats.filter((format) => isUsableUrl(format.url) && hasVideoOnly(format));
+  const mergedCandidate = chooseMergedCandidate(videoOnlyFormats, audioFormats);
   const directCandidate = chooseDirectCandidate({
     profile,
     entry,
@@ -295,9 +296,10 @@ function resolveEntry(entry, profile, index) {
 
   const sourceUrl = entry.webpage_url || entry.original_url || directSourceUrl || "";
   const title = entry.title || `Item ${index}`;
-  const ext = directCandidate?.ext || defaultExtensionForProfile(profile);
+  const downloadCandidate = profile === "video" ? mergedCandidate || directCandidate : directCandidate;
+  const ext = downloadCandidate?.ext || defaultExtensionForProfile(profile);
   const downloadUrl = sourceUrl ? buildDownloadUrl(sourceUrl, title, ext, profile) : "";
-  const needsProcessing = !directCandidate && Boolean(downloadUrl);
+  const needsProcessing = Boolean(downloadUrl) && (!directCandidate || downloadCandidate?.needsProcessing);
 
   return {
     index,
@@ -310,9 +312,26 @@ function resolveEntry(entry, profile, index) {
     directUrl: directCandidate?.url || "",
     downloadUrl,
     fileExtension: ext,
-    formatLabel: directCandidate?.label || "",
+    formatLabel: downloadCandidate?.label || directCandidate?.label || "",
     status: downloadUrl ? (needsProcessing ? "processing-required" : "ready") : "unavailable",
     reason: downloadUrl ? "" : explainFallback(formats, profile, directSourceUrl)
+  };
+}
+
+function chooseMergedCandidate(videoOnlyFormats, audioFormats) {
+  const mp4Video = rankFormats(videoOnlyFormats.filter((format) => format.ext === "mp4"))[0];
+  const m4aAudio = rankFormats(audioFormats.filter((format) => format.ext === "m4a"))[0];
+  const video = mp4Video || rankFormats(videoOnlyFormats)[0];
+  const audio = m4aAudio || rankFormats(audioFormats)[0];
+
+  if (!video || !audio) {
+    return null;
+  }
+
+  return {
+    ext: video.ext === "mp4" && audio.ext === "m4a" ? "mp4" : video.ext || defaultExtensionForProfile("video"),
+    label: `${video.label} + ${audio.label || "audio"}`,
+    needsProcessing: true
   };
 }
 
@@ -403,11 +422,13 @@ function rankFormats(formats) {
 }
 
 function buildFormatLabel(format) {
-  return [
+  const parts = [
     format.height ? `${format.height}p` : "",
     format.format_note || "",
     format.ext || ""
-  ].filter(Boolean).join(" • ");
+  ].filter(Boolean);
+
+  return [...new Set(parts)].join(" • ");
 }
 
 function formatScore(format) {
@@ -546,11 +567,13 @@ function buildDownloadArgs(payload, outputTemplate) {
     "--no-progress",
     "--restrict-filenames",
     "--no-playlist",
-    "--ffmpeg-location",
-    config.ffmpegBinary,
     "-o",
     outputTemplate
   ];
+
+  if (shouldPassFfmpegLocation(config.ffmpegBinary)) {
+    args.push("--ffmpeg-location", config.ffmpegBinary);
+  }
 
   if (config.cookieFile) {
     args.push("--cookies", config.cookieFile);
@@ -559,13 +582,17 @@ function buildDownloadArgs(payload, outputTemplate) {
   if (payload.profile === "audio") {
     args.push("-x", "--audio-format", "mp3", "--audio-quality", "0");
   } else if (payload.profile === "video") {
-    args.push("-f", "b/bv*+ba/b");
+    args.push("-f", "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b", "--merge-output-format", "mp4");
   } else {
     args.push("-f", "b");
   }
 
   args.push(payload.sourceUrl);
   return args;
+}
+
+function shouldPassFfmpegLocation(value) {
+  return Boolean(value && (path.isAbsolute(value) || value.includes(path.sep)));
 }
 
 async function runCommand(command, args, options = {}) {
