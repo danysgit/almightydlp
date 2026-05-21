@@ -9,6 +9,8 @@ const inspectionSubtitle = document.querySelector("#inspection-subtitle");
 const inspectionThumb = document.querySelector("#inspection-thumb");
 const inspectionLink = document.querySelector("#inspection-link");
 const profileHint = document.querySelector("#profile-hint");
+const shortcutCard = document.querySelector("#shortcut-card");
+const shortcutLink = document.querySelector("#shortcut-link");
 const workingState = document.querySelector("#working-state");
 const workingText = document.querySelector("#working-text");
 const resultCard = document.querySelector("#result-card");
@@ -16,8 +18,6 @@ const resultStatus = document.querySelector("#result-status");
 const resultTitle = document.querySelector("#result-title");
 const resultCopy = document.querySelector("#result-copy");
 const resultList = document.querySelector("#result-list");
-const fallbackCard = document.querySelector("#fallback-card");
-const fallbackText = document.querySelector("#fallback-text");
 const copyWrap = document.querySelector("#copy-wrap");
 const copyButton = document.querySelector("#copy-button");
 
@@ -43,7 +43,31 @@ form.addEventListener("submit", (event) => {
 hideWorkingState();
 clearResults();
 updateProfileHint();
+loadPublicConfig();
 resumeExistingJob();
+
+async function loadPublicConfig() {
+  if (!shortcutCard || !shortcutLink) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/config");
+    if (!response.ok) {
+      return;
+    }
+
+    const config = await response.json();
+    if (!config.shortcutAvailable || !config.shortcutPath) {
+      return;
+    }
+
+    shortcutLink.href = config.shortcutPath;
+    shortcutCard.hidden = false;
+  } catch {
+    // The shortcut card is optional and stays hidden when config cannot load.
+  }
+}
 
 async function startResolve() {
   const url = mediaUrl.value.trim();
@@ -230,14 +254,6 @@ function renderResult(result) {
   renderItems(result.items || []);
   latestCopyText = result.copyText || "";
   copyWrap.hidden = !latestCopyText;
-
-  if (result.fallbackSummary) {
-    fallbackCard.hidden = false;
-    fallbackText.textContent = result.fallbackSummary;
-  } else {
-    fallbackCard.hidden = true;
-    fallbackText.textContent = "";
-  }
 }
 
 function renderFailure(message) {
@@ -249,13 +265,11 @@ function renderFailure(message) {
   resultList.innerHTML = "";
   copyWrap.hidden = true;
   latestCopyText = "";
-  fallbackCard.hidden = true;
 }
 
 function clearResults() {
   inspectionCard.hidden = true;
   resultCard.hidden = true;
-  fallbackCard.hidden = true;
   resultList.innerHTML = "";
   latestCopyText = "";
   copyWrap.hidden = true;
@@ -313,12 +327,6 @@ function renderItems(items) {
 
       row.append(actions);
 
-      if (!item.directUrl) {
-        const note = document.createElement("p");
-        note.className = "result__note";
-        note.textContent = "This one needs extra processing before it can be saved.";
-        row.append(note);
-      }
     } else {
       const reason = document.createElement("p");
       reason.className = "result__warning";

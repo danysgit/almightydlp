@@ -21,6 +21,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## iOS Shortcut
+
+AlmightyDLP can expose an install link for an iOS share-sheet shortcut on the app home screen. Create a shortcut named `Save with AlmightyDLP`, configure it to receive URLs from the share sheet, and have it:
+
+1. POST the shared URL to `https://almightydlp.com/api/resolve` with `{ "url": "Shortcut Input", "profile": "video" }`.
+2. Poll `https://almightydlp.com/api/jobs/{jobId}` every 2 seconds for up to 5 minutes.
+3. Download every completed `item.downloadUrl`.
+4. Save videos to Photos, or show a clear alert if the job fails or times out.
+
+After sharing the shortcut from Apple's Shortcuts app, set `SHORTCUT_INSTALL_URL` to the generated `https://www.icloud.com/shortcuts/...` link. The public deployment should also set `BASE_URL=https://almightydlp.com` so shortcut API results contain absolute download URLs.
+
 ## Docker
 
 ```bash
@@ -50,6 +61,7 @@ For manual Unraid installs, use the `my-AlmightyDLP.xml` template above.
 | `HOST` | `0.0.0.0` | HTTP bind address |
 | `APP_TITLE` | `AlmightyDLP` | Visible app name |
 | `BASE_URL` | empty | Optional absolute base URL for generated links |
+| `SHORTCUT_INSTALL_URL` | empty | Optional iCloud Shortcuts share URL shown as an install link on the home screen |
 | `APPDATA_DIR` | `/config` in containers, `./data` locally | Persistent app data root |
 | `YTDLP_BINARY` | `yt-dlp` | yt-dlp executable path |
 | `FFMPEG_BINARY` | `ffmpeg` | ffmpeg path for merged downloads |

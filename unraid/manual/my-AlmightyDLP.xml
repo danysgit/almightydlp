@@ -51,6 +51,11 @@
       <Mode/>
     </Variable>
     <Variable>
+      <Value></Value>
+      <Name>SHORTCUT_INSTALL_URL</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
       <Value>/config</Value>
       <Name>APPDATA_DIR</Name>
       <Mode/>
@@ -125,6 +130,7 @@
   <Config Name="AppData" Target="/config" Default="/mnt/user/appdata/almightydlp" Mode="rw" Description="Persistent application data, temp workspace, optional cookies, and saved token secret" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/almightydlp</Config>
   <Config Name="App Title" Target="APP_TITLE" Default="AlmightyDLP" Mode="" Description="Visible app name in the web UI" Type="Variable" Display="advanced" Required="false" Mask="false">AlmightyDLP</Config>
   <Config Name="Base URL" Target="BASE_URL" Default="" Mode="" Description="Optional public base URL used to render absolute download links" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="iOS Shortcut Install URL" Target="SHORTCUT_INSTALL_URL" Default="" Mode="" Description="Optional iCloud Shortcuts share URL. When set, the web UI shows an Install iOS Shortcut link and /shortcut redirects to this URL." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="AppData Dir" Target="APPDATA_DIR" Default="/config" Mode="" Description="Internal appdata path used for persistent state and generated secrets" Type="Variable" Display="advanced" Required="false" Mask="false">/config</Config>
   <Config Name="FFmpeg Binary" Target="FFMPEG_BINARY" Default="ffmpeg" Mode="" Description="FFmpeg binary used when a site needs extra processing before saving" Type="Variable" Display="advanced" Required="false" Mask="false">ffmpeg</Config>
   <Config Name="Allow Playlists" Target="ALLOW_PLAYLISTS" Default="true" Mode="" Description="Set to false to force single-item downloads only" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>

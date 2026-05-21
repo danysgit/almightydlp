@@ -15,6 +15,14 @@
   <body>
     <div class="shell">
       <main class="panel">
+        <section class="shortcut-card" id="shortcut-card" hidden>
+          <div class="shortcut-card__copy">
+            <strong>Save from iOS Share Sheet</strong>
+            <p>Install the shortcut, then share links straight to AlmightyDLP.</p>
+          </div>
+          <a class="button button--secondary" id="shortcut-link" href="/shortcut">Install iOS Shortcut</a>
+        </section>
+
         <form id="resolver-form" class="stack">
           <label class="field">
             <span>Paste a link</span>
@@ -80,14 +88,6 @@
           </div>
 
           <div class="results" id="result-list"></div>
-        </section>
-
-        <section class="card card--warning" id="fallback-card" hidden>
-          <div class="card__head">
-            <h2>Heads up</h2>
-            <span class="pill pill--warning">Not available as a simple link</span>
-          </div>
-          <p id="fallback-text"></p>
         </section>
       </main>
 

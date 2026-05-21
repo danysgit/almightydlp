@@ -20,6 +20,7 @@ const config = {
   host: process.env.HOST || "0.0.0.0",
   appTitle: process.env.APP_TITLE || "AlmightyDLP",
   baseUrl: (process.env.BASE_URL || "").trim(),
+  shortcutInstallUrl: normalizeUrl(process.env.SHORTCUT_INSTALL_URL || ""),
   ytDlpBinary: process.env.YTDLP_BINARY || "yt-dlp",
   ffmpegBinary: process.env.FFMPEG_BINARY || "ffmpeg",
   allowPlaylists: String(process.env.ALLOW_PLAYLISTS || "true") !== "false",
@@ -69,6 +70,14 @@ app.use((req, res, next) => {
   next();
 });
 app.use(authGuard);
+
+app.get("/api/config", (_req, res) => {
+  res.json({
+    title: config.appTitle,
+    shortcutAvailable: Boolean(config.shortcutInstallUrl),
+    shortcutPath: config.shortcutInstallUrl ? "/shortcut" : ""
+  });
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -164,31 +173,19 @@ app.get("/api/download", async (req, res) => {
 
   try {
     tempRoot = await createDownloadTempRoot();
-    const outputTemplate = payload.requiresTranscode
-      ? path.join(tempRoot, "source.%(ext)s")
-      : path.join(tempRoot, payload.filename);
+    const outputTemplate = path.join(tempRoot, payload.filename);
 
     await runCommand(config.ytDlpBinary, buildDownloadArgs(payload, outputTemplate), {
       captureStdout: false
     });
 
-    let resolvedFile = await findFirstFile(tempRoot);
+    const resolvedFile = await findFirstFile(tempRoot);
 
     if (!resolvedFile) {
       return res.status(502).send("Could not fetch this file.");
     }
 
-    let absolutePath = path.join(tempRoot, resolvedFile);
-    if (payload.requiresTranscode) {
-      const finalPath = path.join(tempRoot, payload.filename);
-      await runCommand(config.ffmpegBinary, buildIphoneTranscodeArgs(absolutePath, finalPath), {
-        captureStdout: false
-      });
-      await fs.rm(absolutePath, { force: true }).catch(() => {});
-      resolvedFile = payload.filename;
-      absolutePath = finalPath;
-    }
-
+    const absolutePath = path.join(tempRoot, resolvedFile);
     res.on("finish", () => {
       fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
     });
@@ -203,6 +200,14 @@ app.get("/api/download", async (req, res) => {
     }
     return res.status(502).send(error.message || "Could not fetch this file.");
   }
+});
+
+app.get("/shortcut", (_req, res) => {
+  if (!config.shortcutInstallUrl) {
+    return res.status(404).send("Shortcut install link is not configured.");
+  }
+
+  return res.redirect(302, config.shortcutInstallUrl);
 });
 
 app.use(express.static(path.join(process.cwd(), "public"), {
@@ -490,27 +495,10 @@ function resolveEntry(entry, profile, index) {
 }
 
 function chooseVideoDownloadCandidate({ progressiveFormats, audioFormats, videoOnlyFormats }) {
-  const nativeCandidate = choosePreferredNativeCandidate(
+  return choosePreferredNativeCandidate(
     chooseNativeIphoneMergedCandidate(videoOnlyFormats, audioFormats),
     chooseNativeIphoneProgressiveCandidate(progressiveFormats)
   );
-  const bestOverallCandidate = chooseBestOverallVideoCandidate(progressiveFormats, videoOnlyFormats, audioFormats);
-
-  if (!bestOverallCandidate) {
-    return nativeCandidate;
-  }
-
-  if (!nativeCandidate || bestOverallCandidate.height > nativeCandidate.height) {
-    return {
-      ...bestOverallCandidate,
-      ext: "mp4",
-      label: appendLabelPart(bestOverallCandidate.label, "iPhone Photos MP4"),
-      needsProcessing: true,
-      requiresTranscode: true
-    };
-  }
-
-  return nativeCandidate;
 }
 
 function choosePreferredNativeCandidate(mergedCandidate, progressiveCandidate) {
@@ -545,7 +533,6 @@ function chooseNativeIphoneMergedCandidate(videoOnlyFormats, audioFormats) {
     ext: "mp4",
     label: `${video.label} + ${audio.label || "audio"}`,
     needsProcessing: true,
-    requiresTranscode: false,
     formatSelector: buildFormatPairSelector(video, audio) || IPHONE_NATIVE_FORMAT_SELECTOR,
     height: video.height,
     score: video.score + audio.score
@@ -564,45 +551,10 @@ function chooseNativeIphoneProgressiveCandidate(progressiveFormats) {
     ext: "mp4",
     label: format.label,
     needsProcessing: !isSimpleDownloadFormat(format),
-    requiresTranscode: false,
     formatSelector: buildSingleFormatSelector(format) || IPHONE_NATIVE_FORMAT_SELECTOR,
     height: format.height,
     score: format.score
   };
-}
-
-function chooseBestOverallVideoCandidate(progressiveFormats, videoOnlyFormats, audioFormats) {
-  const progressive = rankFormats(progressiveFormats)[0];
-  const video = rankFormats(videoOnlyFormats)[0];
-  const audio = rankFormats(audioFormats)[0];
-  const candidates = [];
-
-  if (progressive) {
-    candidates.push({
-      url: progressive.url,
-      ext: progressive.ext || defaultExtensionForProfile("video"),
-      label: progressive.label,
-      needsProcessing: !isSimpleDownloadFormat(progressive),
-      requiresTranscode: false,
-      formatSelector: buildSingleFormatSelector(progressive),
-      height: progressive.height,
-      score: progressive.score
-    });
-  }
-
-  if (video && audio) {
-    candidates.push({
-      ext: video.ext || defaultExtensionForProfile("video"),
-      label: `${video.label} + ${audio.label || "audio"}`,
-      needsProcessing: true,
-      requiresTranscode: false,
-      formatSelector: buildFormatPairSelector(video, audio) || "bv*+ba/b",
-      height: video.height,
-      score: video.score + audio.score
-    });
-  }
-
-  return candidates.sort(compareCandidates)[0] || null;
 }
 
 function chooseDirectCandidate({ profile, entry, directSourceUrl, progressiveFormats, audioFormats, videoOnlyFormats }) {
@@ -741,10 +693,6 @@ function buildFormatPairSelector(video, audio) {
   return `${video.formatId}+${audio.formatId}`;
 }
 
-function appendLabelPart(label, part) {
-  return [...new Set([label, part].filter(Boolean))].join(" • ");
-}
-
 function isIphoneCompatibleProgressiveFormat(format) {
   return hasAudioAndVideo(format)
     && isIphoneCompatibleVideoFormat(format)
@@ -838,8 +786,7 @@ function buildDownloadUrl(sourceUrl, title, ext, profile, candidate = {}) {
     sourceUrl,
     filename,
     profile,
-    formatSelector: candidate?.formatSelector || "",
-    requiresTranscode: Boolean(candidate?.requiresTranscode)
+    formatSelector: candidate?.formatSelector || ""
   });
   const suffix = `/api/download?token=${encodeURIComponent(token)}`;
   return config.baseUrl ? new URL(suffix, config.baseUrl).toString() : suffix;
@@ -880,7 +827,6 @@ function verifyDownloadToken(token) {
     throw new Error("Invalid download URL.");
   }
   payload.formatSelector = typeof payload.formatSelector === "string" ? payload.formatSelector : "";
-  payload.requiresTranscode = Boolean(payload.requiresTranscode);
 
   return payload;
 }
@@ -944,45 +890,13 @@ function buildDownloadArgs(payload, outputTemplate) {
   if (payload.profile === "audio") {
     args.push("-x", "--audio-format", "mp3", "--audio-quality", "0");
   } else if (payload.profile === "video") {
-    const selector = payload.formatSelector || (payload.requiresTranscode ? "bv*+ba/b" : IPHONE_NATIVE_FORMAT_SELECTOR);
-    args.push("-f", selector, "--merge-output-format", payload.requiresTranscode ? "mkv" : "mp4");
+    args.push("-f", payload.formatSelector || IPHONE_NATIVE_FORMAT_SELECTOR, "--merge-output-format", "mp4");
   } else {
     args.push("-f", "b");
   }
 
   args.push(payload.sourceUrl);
   return args;
-}
-
-function buildIphoneTranscodeArgs(sourcePath, outputPath) {
-  return [
-    "-y",
-    "-i",
-    sourcePath,
-    "-map",
-    "0:v:0",
-    "-map",
-    "0:a:0?",
-    "-vf",
-    "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "18",
-    "-pix_fmt",
-    "yuv420p",
-    "-tag:v",
-    "avc1",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "192k",
-    "-movflags",
-    "+faststart",
-    outputPath
-  ];
 }
 
 function shouldPassFfmpegLocation(value) {
@@ -1047,14 +961,6 @@ function friendlyBackendError(message) {
 
   if (message.includes("Requested format is not available")) {
     return "This site did not provide the kind of file you asked for.";
-  }
-
-  if (message.includes("Unknown encoder 'libx264'")) {
-    return "ffmpeg cannot create the iPhone-compatible H.264 file because its H.264 encoder is missing.";
-  }
-
-  if (message.includes("Conversion failed")) {
-    return "ffmpeg could not convert this video into an iPhone-compatible MP4.";
   }
 
   return message;

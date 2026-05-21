@@ -10,6 +10,7 @@ services:
       HOST: 0.0.0.0
       APP_TITLE: ${APP_TITLE:-AlmightyDLP}
       BASE_URL: ${BASE_URL:-}
+      SHORTCUT_INSTALL_URL: ${SHORTCUT_INSTALL_URL:-}
       APPDATA_DIR: ${APPDATA_DIR:-/config}
       FFMPEG_BINARY: ${FFMPEG_BINARY:-ffmpeg}
       ALLOW_PLAYLISTS: ${ALLOW_PLAYLISTS:-true}

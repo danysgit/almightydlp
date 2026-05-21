@@ -69,6 +69,7 @@ body::after {
 
 .panel,
 .card,
+.shortcut-card,
 .status,
 .result,
 input,
@@ -143,6 +144,34 @@ h2 {
 .stack {
   display: grid;
   gap: 14px;
+}
+
+.shortcut-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(0, 166, 244, 0.12), transparent 58%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.shortcut-card__copy {
+  display: grid;
+  gap: 5px;
+}
+
+.shortcut-card__copy strong {
+  line-height: 1.25;
+}
+
+.shortcut-card__copy p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .field {
@@ -268,6 +297,15 @@ select:focus,
 .button--ghost {
   color: var(--text);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.button--secondary {
+  flex: 0 0 auto;
+  color: var(--text);
+  text-decoration: none;
+  background:
+    linear-gradient(135deg, rgba(0, 166, 244, 0.22), rgba(55, 247, 18, 0.12)),
+    rgba(255, 255, 255, 0.06);
 }
 
 .card {
@@ -482,13 +520,20 @@ select:focus,
   }
 
   .actions--bottom,
-  .copy-wrap {
+  .copy-wrap,
+  .shortcut-card {
     justify-content: stretch;
   }
 
   .button,
-  .copy-wrap .button {
+  .copy-wrap .button,
+  .shortcut-card .button {
     width: 100%;
+  }
+
+  .shortcut-card {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .copy-wrap {
