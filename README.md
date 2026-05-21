@@ -23,14 +23,15 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## iOS Shortcut
 
-AlmightyDLP can expose an install link for an iOS share-sheet shortcut on the app home screen. Create a shortcut named `Save with AlmightyDLP`, configure it to receive URLs from the share sheet, and have it:
+AlmightyDLP includes a signed iOS shortcut named `Save with AlmightyDLP`. Install it from the app home screen, then share a supported link to the shortcut from the iOS share sheet. The shortcut calls AlmightyDLP, downloads the prepared iPhone-compatible video, and saves it to Photos.
 
-1. POST the shared URL to `https://almightydlp.com/api/resolve` with `{ "url": "Shortcut Input", "profile": "video" }`.
-2. Poll `https://almightydlp.com/api/jobs/{jobId}` every 2 seconds for up to 5 minutes.
-3. Download every completed `item.downloadUrl`.
-4. Save videos to Photos, or show a clear alert if the job fails or times out.
+The bundled shortcut uses `https://almightydlp.com/api/shortcut/download`. If you prefer to use an iCloud Shortcuts share link instead, set `SHORTCUT_INSTALL_URL` to the generated `https://www.icloud.com/shortcuts/...` link and the home screen install button will redirect there.
 
-After sharing the shortcut from Apple's Shortcuts app, set `SHORTCUT_INSTALL_URL` to the generated `https://www.icloud.com/shortcuts/...` link. The public deployment should also set `BASE_URL=https://almightydlp.com` so shortcut API results contain absolute download URLs.
+To regenerate the checked-in shortcut on macOS:
+
+```bash
+npm run build:shortcut
+```
 
 ## Docker
 

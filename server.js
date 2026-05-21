@@ -11,6 +11,7 @@ import express from "express";
 const app = express();
 const appDataDir = await detectAppDataDir();
 const persistedSecretPath = path.join(appDataDir, "keys", "download-token.secret");
+const bundledShortcutPath = path.join(process.cwd(), "public", "save-with-almightydlp.shortcut");
 const downloadTokenSecret = await loadDownloadTokenSecret();
 const requestedCookieFile = (process.env.COOKIE_FILE || path.join(appDataDir, "cookies", "cookies.txt")).trim();
 const cookieFile = await resolveCookieFile(requestedCookieFile);
@@ -74,8 +75,8 @@ app.use(authGuard);
 app.get("/api/config", (_req, res) => {
   res.json({
     title: config.appTitle,
-    shortcutAvailable: Boolean(config.shortcutInstallUrl),
-    shortcutPath: config.shortcutInstallUrl ? "/shortcut" : ""
+    shortcutAvailable: true,
+    shortcutPath: "/shortcut"
   });
 });
 
@@ -169,45 +170,46 @@ app.get("/api/download", async (req, res) => {
     return res.status(400).send(error.message || "Invalid download URL.");
   }
 
-  let tempRoot = "";
-
   try {
-    tempRoot = await createDownloadTempRoot();
-    const outputTemplate = path.join(tempRoot, payload.filename);
-
-    await runCommand(config.ytDlpBinary, buildDownloadArgs(payload, outputTemplate), {
-      captureStdout: false
-    });
-
-    const resolvedFile = await findFirstFile(tempRoot);
-
-    if (!resolvedFile) {
-      return res.status(502).send("Could not fetch this file.");
-    }
-
-    const absolutePath = path.join(tempRoot, resolvedFile);
-    res.on("finish", () => {
-      fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
-    });
-    res.on("close", () => {
-      fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
-    });
-
-    return res.download(absolutePath, resolvedFile);
+    return await sendDownloadPayload(res, payload);
   } catch (error) {
-    if (tempRoot) {
-      await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
-    }
     return res.status(502).send(error.message || "Could not fetch this file.");
   }
 });
 
-app.get("/shortcut", (_req, res) => {
-  if (!config.shortcutInstallUrl) {
-    return res.status(404).send("Shortcut install link is not configured.");
+app.get("/api/shortcut/download", async (req, res) => {
+  let url = "";
+  try {
+    url = await normalizeMediaUrl(req.query?.url);
+  } catch (error) {
+    return res.status(400).send(error.message || "A valid media URL is required.");
   }
 
-  return res.redirect(302, config.shortcutInstallUrl);
+  if (!url) {
+    return res.status(400).send("A valid media URL is required.");
+  }
+
+  try {
+    const metadata = await inspectUrl(url);
+    const plan = resolveFirstDownloadPlan(metadata, "video");
+
+    if (!plan) {
+      return res.status(502).send("No downloadable video was found for this link.");
+    }
+
+    return await sendDownloadPayload(res, plan.payload);
+  } catch (error) {
+    return res.status(502).send(friendlyBackendError(error.message || "Could not save this link."));
+  }
+});
+
+app.get("/shortcut", (_req, res) => {
+  if (config.shortcutInstallUrl) {
+    return res.redirect(302, config.shortcutInstallUrl);
+  }
+
+  res.type("application/x-apple-shortcut");
+  return res.download(bundledShortcutPath, "Save with AlmightyDLP.shortcut");
 });
 
 app.use(express.static(path.join(process.cwd(), "public"), {
@@ -243,6 +245,42 @@ async function runResolveJob(job) {
 async function inspectUrl(url) {
   const stdout = await runCommand(config.ytDlpBinary, buildInspectArgs(url));
   return JSON.parse(stdout);
+}
+
+async function sendDownloadPayload(res, payload) {
+  await assertAllowedMediaUrl(payload.sourceUrl);
+
+  let tempRoot = "";
+
+  try {
+    tempRoot = await createDownloadTempRoot();
+    const outputTemplate = path.join(tempRoot, payload.filename);
+
+    await runCommand(config.ytDlpBinary, buildDownloadArgs(payload, outputTemplate), {
+      captureStdout: false
+    });
+
+    const resolvedFile = await findFirstFile(tempRoot);
+
+    if (!resolvedFile) {
+      return res.status(502).send("Could not fetch this file.");
+    }
+
+    const absolutePath = path.join(tempRoot, resolvedFile);
+    res.on("finish", () => {
+      fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+    });
+    res.on("close", () => {
+      fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+    });
+
+    return res.download(absolutePath, resolvedFile);
+  } catch (error) {
+    if (tempRoot) {
+      await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+    }
+    return res.status(502).send(error.message || "Could not fetch this file.");
+  }
 }
 
 async function detectAppDataDir() {
@@ -450,6 +488,22 @@ function resolveMetadata(metadata, profile) {
 }
 
 function resolveEntry(entry, profile, index) {
+  return resolveEntryPlan(entry, profile, index).item;
+}
+
+function resolveFirstDownloadPlan(metadata, profile) {
+  const entries = normalizeEntries(metadata);
+  for (const [index, entry] of entries.entries()) {
+    const plan = resolveEntryPlan(entry, profile, index + 1);
+    if (plan.payload) {
+      return plan;
+    }
+  }
+
+  return null;
+}
+
+function resolveEntryPlan(entry, profile, index) {
   const formats = Array.isArray(entry.formats) ? entry.formats : [];
   const directSourceUrl = typeof entry.url === "string" ? entry.url : "";
   const progressiveFormats = formats.filter((format) => isUsableUrl(format.url) && hasAudioAndVideo(format));
@@ -473,24 +527,28 @@ function resolveEntry(entry, profile, index) {
   const title = entry.title || `Item ${index}`;
   const downloadCandidate = profile === "video" ? videoCandidate || directCandidate : directCandidate;
   const ext = downloadCandidate?.ext || defaultExtensionForProfile(profile);
-  const downloadUrl = sourceUrl ? buildDownloadUrl(sourceUrl, title, ext, profile, downloadCandidate) : "";
+  const payload = sourceUrl ? buildDownloadPayload(sourceUrl, title, ext, profile, downloadCandidate) : null;
+  const downloadUrl = payload ? buildDownloadUrl(payload) : "";
   const exposedDirectUrl = canExposeDirectUrl(downloadCandidate, directCandidate) ? directCandidate.url : "";
   const needsProcessing = Boolean(downloadUrl) && (!downloadCandidate || Boolean(downloadCandidate.needsProcessing));
 
   return {
-    index,
-    id: entry.id || "",
-    title,
-    sourceUrl,
-    webpageUrl: entry.webpage_url || sourceUrl,
-    duration: entry.duration || null,
-    extractor: entry.extractor_key || entry.extractor || "",
-    directUrl: exposedDirectUrl,
-    downloadUrl,
-    fileExtension: ext,
-    formatLabel: downloadCandidate?.label || directCandidate?.label || "",
-    status: downloadUrl ? (needsProcessing ? "processing-required" : "ready") : "unavailable",
-    reason: downloadUrl ? "" : explainFallback(formats, profile, directSourceUrl)
+    payload,
+    item: {
+      index,
+      id: entry.id || "",
+      title,
+      sourceUrl,
+      webpageUrl: entry.webpage_url || sourceUrl,
+      duration: entry.duration || null,
+      extractor: entry.extractor_key || entry.extractor || "",
+      directUrl: exposedDirectUrl,
+      downloadUrl,
+      fileExtension: ext,
+      formatLabel: downloadCandidate?.label || directCandidate?.label || "",
+      status: downloadUrl ? (needsProcessing ? "processing-required" : "ready") : "unavailable",
+      reason: downloadUrl ? "" : explainFallback(formats, profile, directSourceUrl)
+    }
   };
 }
 
@@ -780,13 +838,21 @@ function buildFallbackSummary(simpleLinkCount, downloadableCount, unresolvedCoun
   return "";
 }
 
-function buildDownloadUrl(sourceUrl, title, ext, profile, candidate = {}) {
-  const filename = sanitizeFilename(title, ext);
-  const token = signDownloadToken({
+function buildDownloadPayload(sourceUrl, title, ext, profile, candidate = {}) {
+  return {
     sourceUrl,
-    filename,
+    filename: sanitizeFilename(title, ext),
     profile,
     formatSelector: candidate?.formatSelector || ""
+  };
+}
+
+function buildDownloadUrl(payload) {
+  const token = signDownloadToken({
+    sourceUrl: payload.sourceUrl,
+    filename: payload.filename,
+    profile: payload.profile,
+    formatSelector: payload.formatSelector || ""
   });
   const suffix = `/api/download?token=${encodeURIComponent(token)}`;
   return config.baseUrl ? new URL(suffix, config.baseUrl).toString() : suffix;

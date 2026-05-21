@@ -14,7 +14,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build:shortcut": "node scripts/build-ios-shortcut.mjs"
   },
   "engines": {
     "node": ">=20"
