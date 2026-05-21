@@ -371,7 +371,7 @@ function updateProfileHint() {
     return;
   }
 
-  profileHint.textContent = "Best for saving the full video.";
+  profileHint.textContent = "Best for saving an iPhone Photos-compatible video.";
 }
 
 function friendlyReason(reason) {

@@ -66,6 +66,11 @@
       <Mode/>
     </Variable>
     <Variable>
+      <Value>false</Value>
+      <Name>ALLOW_PRIVATE_URLS</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
       <Value>video</Value>
       <Name>DEFAULT_PROFILE</Name>
       <Mode/>
@@ -123,6 +128,7 @@
   <Config Name="AppData Dir" Target="APPDATA_DIR" Default="/config" Mode="" Description="Internal appdata path used for persistent state and generated secrets" Type="Variable" Display="advanced" Required="false" Mask="false">/config</Config>
   <Config Name="FFmpeg Binary" Target="FFMPEG_BINARY" Default="ffmpeg" Mode="" Description="FFmpeg binary used when a site needs extra processing before saving" Type="Variable" Display="advanced" Required="false" Mask="false">ffmpeg</Config>
   <Config Name="Allow Playlists" Target="ALLOW_PLAYLISTS" Default="true" Mode="" Description="Set to false to force single-item downloads only" Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Allow Private URLs" Target="ALLOW_PRIVATE_URLS" Default="false" Mode="" Description="Set to true only on trusted private deployments that need to resolve local or reserved network media URLs" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
   <Config Name="Default Profile" Target="DEFAULT_PROFILE" Default="video" Mode="" Description="Startup selection for the UI profile picker: video, audio, or original" Type="Variable" Display="advanced" Required="false" Mask="false">video</Config>
   <Config Name="Auth Username" Target="AUTH_USERNAME" Default="" Mode="" Description="Optional Basic Auth username to protect the web interface" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Auth Password" Target="AUTH_PASSWORD" Default="" Mode="" Description="Optional Basic Auth password to protect the web interface" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>

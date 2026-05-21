@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import dns from "node:dns/promises";
 import fs from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -21,6 +23,7 @@ const config = {
   ytDlpBinary: process.env.YTDLP_BINARY || "yt-dlp",
   ffmpegBinary: process.env.FFMPEG_BINARY || "ffmpeg",
   allowPlaylists: String(process.env.ALLOW_PLAYLISTS || "true") !== "false",
+  allowPrivateUrls: String(process.env.ALLOW_PRIVATE_URLS || "false") === "true",
   defaultProfile: process.env.DEFAULT_PROFILE || "video",
   authUsername: process.env.AUTH_USERNAME || "",
   authPassword: process.env.AUTH_PASSWORD || "",
@@ -33,6 +36,19 @@ const config = {
 };
 
 const jobs = new Map();
+const blockedMediaAddressRanges = createBlockedMediaAddressRanges();
+const IPHONE_NATIVE_FORMAT_SELECTOR = [
+  "bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=hvc1]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=hev1]+ba[ext=m4a]",
+  "b[ext=mp4][vcodec^=avc1]",
+  "b[ext=mp4][vcodec^=hvc1]",
+  "b[ext=mp4][vcodec^=hev1]"
+].join("/");
+const IPHONE_VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov"]);
+const IPHONE_AUDIO_EXTENSIONS = new Set(["m4a", "mp4", "aac"]);
+const IPHONE_VIDEO_CODEC_PREFIXES = ["avc1", "h264", "h.264", "hvc1", "hev1", "hevc", "h265", "h.265"];
+const IPHONE_AUDIO_CODEC_PREFIXES = ["mp4a", "aac"];
 
 await fs.mkdir(config.tempDir, { recursive: true });
 await fs.mkdir(path.dirname(persistedSecretPath), { recursive: true });
@@ -65,8 +81,14 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.post("/api/resolve", (req, res) => {
-  const url = normalizeUrl(req.body?.url);
+app.post("/api/resolve", async (req, res) => {
+  let url = "";
+  try {
+    url = await normalizeMediaUrl(req.body?.url);
+  } catch (error) {
+    return res.status(400).json({ error: error.message || "A valid media URL is required." });
+  }
+
   const requestedProfile = String(req.body?.profile || config.defaultProfile).toLowerCase();
   const profile = ["video", "audio", "original"].includes(requestedProfile)
     ? requestedProfile
@@ -132,24 +154,41 @@ app.get("/api/download", async (req, res) => {
     return res.status(400).send(error.message || "Invalid download token.");
   }
 
+  try {
+    await assertAllowedMediaUrl(payload.sourceUrl);
+  } catch (error) {
+    return res.status(400).send(error.message || "Invalid download URL.");
+  }
+
   let tempRoot = "";
 
   try {
     tempRoot = await createDownloadTempRoot();
-    const outputTemplate = path.join(tempRoot, payload.filename);
+    const outputTemplate = payload.requiresTranscode
+      ? path.join(tempRoot, "source.%(ext)s")
+      : path.join(tempRoot, payload.filename);
 
     await runCommand(config.ytDlpBinary, buildDownloadArgs(payload, outputTemplate), {
       captureStdout: false
     });
 
-    const files = await fs.readdir(tempRoot);
-    const resolvedFile = files.find(Boolean);
+    let resolvedFile = await findFirstFile(tempRoot);
 
     if (!resolvedFile) {
       return res.status(502).send("Could not fetch this file.");
     }
 
-    const absolutePath = path.join(tempRoot, resolvedFile);
+    let absolutePath = path.join(tempRoot, resolvedFile);
+    if (payload.requiresTranscode) {
+      const finalPath = path.join(tempRoot, payload.filename);
+      await runCommand(config.ffmpegBinary, buildIphoneTranscodeArgs(absolutePath, finalPath), {
+        captureStdout: false
+      });
+      await fs.rm(absolutePath, { force: true }).catch(() => {});
+      resolvedFile = payload.filename;
+      absolutePath = finalPath;
+    }
+
     res.on("finish", () => {
       fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
     });
@@ -253,9 +292,136 @@ async function resolveCookieFile(cookieFilePath) {
   }
 }
 
+async function normalizeMediaUrl(value) {
+  const url = normalizeUrl(value);
+  if (!url) {
+    return "";
+  }
+
+  await assertAllowedMediaUrl(url);
+  return url;
+}
+
+async function assertAllowedMediaUrl(value) {
+  const parsed = parseHttpUrl(value);
+  if (!parsed) {
+    throw new Error("A valid media URL is required.");
+  }
+
+  if (config.allowPrivateUrls) {
+    return;
+  }
+
+  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  if (isLocalHostname(hostname)) {
+    throw new Error("Private or local network URLs are not allowed.");
+  }
+
+  const directIpVersion = net.isIP(hostname);
+  if (directIpVersion) {
+    if (isBlockedMediaAddress(hostname, directIpVersion)) {
+      throw new Error("Private or local network URLs are not allowed.");
+    }
+    return;
+  }
+
+  let addresses;
+  try {
+    addresses = await dns.lookup(hostname, { all: true, verbatim: true });
+  } catch {
+    throw new Error("This media URL could not be resolved.");
+  }
+
+  if (!addresses.length || addresses.some(({ address, family }) => isBlockedMediaAddress(address, family))) {
+    throw new Error("Private or local network URLs are not allowed.");
+  }
+}
+
+function parseHttpUrl(value) {
+  const normalized = normalizeUrl(value);
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    return new URL(normalized);
+  } catch {
+    return null;
+  }
+}
+
+function isLocalHostname(hostname) {
+  return hostname === "localhost"
+    || hostname.endsWith(".localhost")
+    || hostname.endsWith(".local");
+}
+
+function createBlockedMediaAddressRanges() {
+  const blockList = new net.BlockList();
+
+  [
+    ["0.0.0.0", 8],
+    ["10.0.0.0", 8],
+    ["100.64.0.0", 10],
+    ["127.0.0.0", 8],
+    ["169.254.0.0", 16],
+    ["172.16.0.0", 12],
+    ["192.0.0.0", 24],
+    ["192.0.2.0", 24],
+    ["192.88.99.0", 24],
+    ["192.168.0.0", 16],
+    ["198.18.0.0", 15],
+    ["198.51.100.0", 24],
+    ["203.0.113.0", 24],
+    ["224.0.0.0", 4],
+    ["240.0.0.0", 4]
+  ].forEach(([address, prefix]) => blockList.addSubnet(address, prefix, "ipv4"));
+
+  [
+    ["::", 128],
+    ["::1", 128],
+    ["64:ff9b::", 96],
+    ["100::", 64],
+    ["2001::", 32],
+    ["2001:db8::", 32],
+    ["fc00::", 7],
+    ["fe80::", 10],
+    ["ff00::", 8]
+  ].forEach(([address, prefix]) => blockList.addSubnet(address, prefix, "ipv6"));
+
+  return blockList;
+}
+
+function isBlockedMediaAddress(address, family) {
+  const type = family === 4 ? "ipv4" : "ipv6";
+  if (type === "ipv6" && address.toLowerCase().startsWith("::ffff:")) {
+    const mappedAddress = address.slice("::ffff:".length);
+    if (net.isIP(mappedAddress) === 4) {
+      return blockedMediaAddressRanges.check(mappedAddress, "ipv4");
+    }
+  }
+
+  return blockedMediaAddressRanges.check(address, type);
+}
+
 async function createDownloadTempRoot() {
   await fs.mkdir(config.tempDir, { recursive: true });
   return fs.mkdtemp(path.join(config.tempDir, "download-"));
+}
+
+async function findFirstFile(dir) {
+  const files = await fs.readdir(dir);
+
+  for (const file of files) {
+    const absolutePath = path.join(dir, file);
+    const stats = await fs.stat(absolutePath).catch(() => null);
+
+    if (stats?.isFile()) {
+      return file;
+    }
+  }
+
+  return "";
 }
 
 function resolveMetadata(metadata, profile) {
@@ -284,7 +450,11 @@ function resolveEntry(entry, profile, index) {
   const progressiveFormats = formats.filter((format) => isUsableUrl(format.url) && hasAudioAndVideo(format));
   const audioFormats = formats.filter((format) => isUsableUrl(format.url) && isAudioOnly(format));
   const videoOnlyFormats = formats.filter((format) => isUsableUrl(format.url) && hasVideoOnly(format));
-  const mergedCandidate = chooseMergedCandidate(videoOnlyFormats, audioFormats);
+  const videoCandidate = chooseVideoDownloadCandidate({
+    progressiveFormats,
+    audioFormats,
+    videoOnlyFormats
+  });
   const directCandidate = chooseDirectCandidate({
     profile,
     entry,
@@ -296,10 +466,11 @@ function resolveEntry(entry, profile, index) {
 
   const sourceUrl = entry.webpage_url || entry.original_url || directSourceUrl || "";
   const title = entry.title || `Item ${index}`;
-  const downloadCandidate = profile === "video" ? mergedCandidate || directCandidate : directCandidate;
+  const downloadCandidate = profile === "video" ? videoCandidate || directCandidate : directCandidate;
   const ext = downloadCandidate?.ext || defaultExtensionForProfile(profile);
-  const downloadUrl = sourceUrl ? buildDownloadUrl(sourceUrl, title, ext, profile) : "";
-  const needsProcessing = Boolean(downloadUrl) && (!directCandidate || downloadCandidate?.needsProcessing);
+  const downloadUrl = sourceUrl ? buildDownloadUrl(sourceUrl, title, ext, profile, downloadCandidate) : "";
+  const exposedDirectUrl = canExposeDirectUrl(downloadCandidate, directCandidate) ? directCandidate.url : "";
+  const needsProcessing = Boolean(downloadUrl) && (!downloadCandidate || Boolean(downloadCandidate.needsProcessing));
 
   return {
     index,
@@ -309,7 +480,7 @@ function resolveEntry(entry, profile, index) {
     webpageUrl: entry.webpage_url || sourceUrl,
     duration: entry.duration || null,
     extractor: entry.extractor_key || entry.extractor || "",
-    directUrl: directCandidate?.url || "",
+    directUrl: exposedDirectUrl,
     downloadUrl,
     fileExtension: ext,
     formatLabel: downloadCandidate?.label || directCandidate?.label || "",
@@ -318,32 +489,134 @@ function resolveEntry(entry, profile, index) {
   };
 }
 
-function chooseMergedCandidate(videoOnlyFormats, audioFormats) {
-  const mp4Video = rankFormats(videoOnlyFormats.filter((format) => format.ext === "mp4"))[0];
-  const m4aAudio = rankFormats(audioFormats.filter((format) => format.ext === "m4a"))[0];
-  const video = mp4Video || rankFormats(videoOnlyFormats)[0];
-  const audio = m4aAudio || rankFormats(audioFormats)[0];
+function chooseVideoDownloadCandidate({ progressiveFormats, audioFormats, videoOnlyFormats }) {
+  const nativeCandidate = choosePreferredNativeCandidate(
+    chooseNativeIphoneMergedCandidate(videoOnlyFormats, audioFormats),
+    chooseNativeIphoneProgressiveCandidate(progressiveFormats)
+  );
+  const bestOverallCandidate = chooseBestOverallVideoCandidate(progressiveFormats, videoOnlyFormats, audioFormats);
+
+  if (!bestOverallCandidate) {
+    return nativeCandidate;
+  }
+
+  if (!nativeCandidate || bestOverallCandidate.height > nativeCandidate.height) {
+    return {
+      ...bestOverallCandidate,
+      ext: "mp4",
+      label: appendLabelPart(bestOverallCandidate.label, "iPhone Photos MP4"),
+      needsProcessing: true,
+      requiresTranscode: true
+    };
+  }
+
+  return nativeCandidate;
+}
+
+function choosePreferredNativeCandidate(mergedCandidate, progressiveCandidate) {
+  if (!mergedCandidate) {
+    return progressiveCandidate || null;
+  }
+
+  if (!progressiveCandidate) {
+    return mergedCandidate;
+  }
+
+  if (progressiveCandidate.height !== mergedCandidate.height) {
+    return [mergedCandidate, progressiveCandidate].sort(compareCandidates)[0];
+  }
+
+  if (!progressiveCandidate.needsProcessing) {
+    return progressiveCandidate;
+  }
+
+  return mergedCandidate;
+}
+
+function chooseNativeIphoneMergedCandidate(videoOnlyFormats, audioFormats) {
+  const video = rankFormats(videoOnlyFormats.filter(isIphoneCompatibleVideoFormat))[0];
+  const audio = rankFormats(audioFormats.filter(isIphoneCompatibleAudioFormat))[0];
 
   if (!video || !audio) {
     return null;
   }
 
   return {
-    ext: video.ext === "mp4" && audio.ext === "m4a" ? "mp4" : video.ext || defaultExtensionForProfile("video"),
+    ext: "mp4",
     label: `${video.label} + ${audio.label || "audio"}`,
-    needsProcessing: true
+    needsProcessing: true,
+    requiresTranscode: false,
+    formatSelector: buildFormatPairSelector(video, audio) || IPHONE_NATIVE_FORMAT_SELECTOR,
+    height: video.height,
+    score: video.score + audio.score
   };
+}
+
+function chooseNativeIphoneProgressiveCandidate(progressiveFormats) {
+  const format = rankFormats(progressiveFormats.filter(isIphoneCompatibleProgressiveFormat))[0];
+
+  if (!format) {
+    return null;
+  }
+
+  return {
+    url: format.url,
+    ext: "mp4",
+    label: format.label,
+    needsProcessing: !isSimpleDownloadFormat(format),
+    requiresTranscode: false,
+    formatSelector: buildSingleFormatSelector(format) || IPHONE_NATIVE_FORMAT_SELECTOR,
+    height: format.height,
+    score: format.score
+  };
+}
+
+function chooseBestOverallVideoCandidate(progressiveFormats, videoOnlyFormats, audioFormats) {
+  const progressive = rankFormats(progressiveFormats)[0];
+  const video = rankFormats(videoOnlyFormats)[0];
+  const audio = rankFormats(audioFormats)[0];
+  const candidates = [];
+
+  if (progressive) {
+    candidates.push({
+      url: progressive.url,
+      ext: progressive.ext || defaultExtensionForProfile("video"),
+      label: progressive.label,
+      needsProcessing: !isSimpleDownloadFormat(progressive),
+      requiresTranscode: false,
+      formatSelector: buildSingleFormatSelector(progressive),
+      height: progressive.height,
+      score: progressive.score
+    });
+  }
+
+  if (video && audio) {
+    candidates.push({
+      ext: video.ext || defaultExtensionForProfile("video"),
+      label: `${video.label} + ${audio.label || "audio"}`,
+      needsProcessing: true,
+      requiresTranscode: false,
+      formatSelector: buildFormatPairSelector(video, audio) || "bv*+ba/b",
+      height: video.height,
+      score: video.score + audio.score
+    });
+  }
+
+  return candidates.sort(compareCandidates)[0] || null;
 }
 
 function chooseDirectCandidate({ profile, entry, directSourceUrl, progressiveFormats, audioFormats, videoOnlyFormats }) {
   if (profile === "audio") {
-    return rankFormats(audioFormats)[0] || directEntryCandidate(entry, directSourceUrl, "audio") || null;
+    return rankFormats(audioFormats.filter(isSimpleDownloadFormat))[0]
+      || directEntryCandidate(entry, directSourceUrl, "audio")
+      || null;
   }
 
   if (profile === "video") {
-    return rankFormats(progressiveFormats)[0]
-      || directEntryCandidate(entry, directSourceUrl, "video")
-      || rankFormats(videoOnlyFormats)[0]
+    return rankFormats(progressiveFormats.filter((format) => (
+      isIphoneCompatibleProgressiveFormat(format) && isSimpleDownloadFormat(format)
+    )))[0]
+      || directEntryCandidate(entry, directSourceUrl, "video", { iphoneCompatibleOnly: true })
       || null;
   }
 
@@ -361,7 +634,11 @@ function chooseDirectCandidate({ profile, entry, directSourceUrl, progressiveFor
     || null;
 }
 
-function directEntryCandidate(entry, directSourceUrl, profile) {
+function canExposeDirectUrl(downloadCandidate, directCandidate) {
+  return Boolean(downloadCandidate?.url && directCandidate?.url && downloadCandidate.url === directCandidate.url);
+}
+
+function directEntryCandidate(entry, directSourceUrl, profile, options = {}) {
   if (!isUsableUrl(directSourceUrl)) {
     return null;
   }
@@ -375,6 +652,10 @@ function directEntryCandidate(entry, directSourceUrl, profile) {
   }
 
   if (profile === "video" && !videoExts.has(ext)) {
+    return null;
+  }
+
+  if (profile === "video" && options.iphoneCompatibleOnly && !isIphoneCompatibleDirectEntry(entry, ext)) {
     return null;
   }
 
@@ -414,7 +695,12 @@ function rankFormats(formats) {
   return [...formats]
     .map((format) => ({
       url: format.url,
-      ext: format.ext || "",
+      ext: String(format.ext || "").toLowerCase(),
+      formatId: String(format.format_id || ""),
+      height: Number(format.height || 0),
+      vcodec: String(format.vcodec || ""),
+      acodec: String(format.acodec || ""),
+      protocol: String(format.protocol || ""),
       label: buildFormatLabel(format),
       score: formatScore(format)
     }))
@@ -436,6 +722,78 @@ function formatScore(format) {
   const abr = Number(format.abr || 0);
   const tbr = Number(format.tbr || 0);
   return height * 1000 + abr * 10 + tbr;
+}
+
+function compareCandidates(a, b) {
+  return Number(b.height || 0) - Number(a.height || 0)
+    || Number(b.score || 0) - Number(a.score || 0);
+}
+
+function buildSingleFormatSelector(format) {
+  return format?.formatId || "";
+}
+
+function buildFormatPairSelector(video, audio) {
+  if (!video?.formatId || !audio?.formatId) {
+    return "";
+  }
+
+  return `${video.formatId}+${audio.formatId}`;
+}
+
+function appendLabelPart(label, part) {
+  return [...new Set([label, part].filter(Boolean))].join(" • ");
+}
+
+function isIphoneCompatibleProgressiveFormat(format) {
+  return hasAudioAndVideo(format)
+    && isIphoneCompatibleVideoFormat(format)
+    && isIphoneCompatibleAudioFormat(format);
+}
+
+function isIphoneCompatibleVideoFormat(format) {
+  const ext = String(format.ext || "").toLowerCase();
+  const codec = normalizeCodec(format.vcodec);
+  return IPHONE_VIDEO_EXTENSIONS.has(ext)
+    && codec !== "none"
+    && startsWithAny(codec, IPHONE_VIDEO_CODEC_PREFIXES);
+}
+
+function isIphoneCompatibleAudioFormat(format) {
+  const ext = String(format.ext || "").toLowerCase();
+  const codec = normalizeCodec(format.acodec);
+  return IPHONE_AUDIO_EXTENSIONS.has(ext)
+    && codec !== "none"
+    && startsWithAny(codec, IPHONE_AUDIO_CODEC_PREFIXES);
+}
+
+function isIphoneCompatibleDirectEntry(entry, ext) {
+  if (!IPHONE_VIDEO_EXTENSIONS.has(ext)) {
+    return false;
+  }
+
+  const vcodec = normalizeCodec(entry.vcodec);
+  const acodec = normalizeCodec(entry.acodec);
+  const videoCompatible = !vcodec || vcodec === "none" || startsWithAny(vcodec, IPHONE_VIDEO_CODEC_PREFIXES);
+  const audioCompatible = !acodec || acodec === "none" || startsWithAny(acodec, IPHONE_AUDIO_CODEC_PREFIXES);
+  return videoCompatible && audioCompatible;
+}
+
+function normalizeCodec(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function startsWithAny(value, prefixes) {
+  return prefixes.some((prefix) => value.startsWith(prefix));
+}
+
+function isSimpleDownloadFormat(format) {
+  const protocol = String(format.protocol || "").toLowerCase();
+  const url = String(format.url || "").toLowerCase();
+  return !protocol.includes("m3u8")
+    && !protocol.includes("dash")
+    && !url.includes(".m3u8")
+    && !url.includes("/manifest/hls");
 }
 
 function hasAudioAndVideo(format) {
@@ -474,12 +832,14 @@ function buildFallbackSummary(simpleLinkCount, downloadableCount, unresolvedCoun
   return "";
 }
 
-function buildDownloadUrl(sourceUrl, title, ext, profile) {
+function buildDownloadUrl(sourceUrl, title, ext, profile, candidate = {}) {
   const filename = sanitizeFilename(title, ext);
   const token = signDownloadToken({
     sourceUrl,
     filename,
-    profile
+    profile,
+    formatSelector: candidate?.formatSelector || "",
+    requiresTranscode: Boolean(candidate?.requiresTranscode)
   });
   const suffix = `/api/download?token=${encodeURIComponent(token)}`;
   return config.baseUrl ? new URL(suffix, config.baseUrl).toString() : suffix;
@@ -519,6 +879,8 @@ function verifyDownloadToken(token) {
   if (!isUsableUrl(payload.sourceUrl)) {
     throw new Error("Invalid download URL.");
   }
+  payload.formatSelector = typeof payload.formatSelector === "string" ? payload.formatSelector : "";
+  payload.requiresTranscode = Boolean(payload.requiresTranscode);
 
   return payload;
 }
@@ -582,13 +944,45 @@ function buildDownloadArgs(payload, outputTemplate) {
   if (payload.profile === "audio") {
     args.push("-x", "--audio-format", "mp3", "--audio-quality", "0");
   } else if (payload.profile === "video") {
-    args.push("-f", "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b", "--merge-output-format", "mp4");
+    const selector = payload.formatSelector || (payload.requiresTranscode ? "bv*+ba/b" : IPHONE_NATIVE_FORMAT_SELECTOR);
+    args.push("-f", selector, "--merge-output-format", payload.requiresTranscode ? "mkv" : "mp4");
   } else {
     args.push("-f", "b");
   }
 
   args.push(payload.sourceUrl);
   return args;
+}
+
+function buildIphoneTranscodeArgs(sourcePath, outputPath) {
+  return [
+    "-y",
+    "-i",
+    sourcePath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-vf",
+    "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "18",
+    "-pix_fmt",
+    "yuv420p",
+    "-tag:v",
+    "avc1",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-movflags",
+    "+faststart",
+    outputPath
+  ];
 }
 
 function shouldPassFfmpegLocation(value) {
@@ -653,6 +1047,14 @@ function friendlyBackendError(message) {
 
   if (message.includes("Requested format is not available")) {
     return "This site did not provide the kind of file you asked for.";
+  }
+
+  if (message.includes("Unknown encoder 'libx264'")) {
+    return "ffmpeg cannot create the iPhone-compatible H.264 file because its H.264 encoder is missing.";
+  }
+
+  if (message.includes("Conversion failed")) {
+    return "ffmpeg could not convert this video into an iPhone-compatible MP4.";
   }
 
   return message;
