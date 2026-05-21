@@ -51,6 +51,10 @@ async function loadPublicConfig() {
     return;
   }
 
+  if (!isIOSMobileSafari()) {
+    return;
+  }
+
   try {
     const response = await fetch("/api/config");
     if (!response.ok) {
@@ -67,6 +71,21 @@ async function loadPublicConfig() {
   } catch {
     // The shortcut card is optional and stays hidden when config cannot load.
   }
+}
+
+function isIOSMobileSafari() {
+  const userAgent = navigator.userAgent || "";
+  const vendor = navigator.vendor || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+  const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent)
+    || /iPad|iPhone|iPod/.test(platform)
+    || (platform === "MacIntel" && maxTouchPoints > 1);
+  const isSafari = /Safari/i.test(userAgent)
+    && /Apple/i.test(vendor)
+    && !/CriOS|FxiOS|OPiOS|EdgiOS|Chrome|Chromium|Android/i.test(userAgent);
+
+  return isIOSDevice && isSafari;
 }
 
 async function startResolve() {
