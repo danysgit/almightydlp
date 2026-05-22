@@ -11,35 +11,48 @@ const outputPath = path.resolve("public", "save-with-almightydlp.shortcut");
 const baseUrl = "https://almightydlp.com";
 const objectReplacementCharacter = "\uFFFC";
 
-const inputCountUuid = uuid();
-const inputGroupUuid = uuid();
+const sharedUrlsUuid = uuid();
+const sharedUrlCountUuid = uuid();
+const sourceGroupUuid = uuid();
 const clipboardUuid = uuid();
-const selectedInputUuid = uuid();
-const detectedUrlUuid = uuid();
+const clipboardUrlsUuid = uuid();
+const selectedUrlsUuid = uuid();
+const selectedUrlCountUuid = uuid();
+const validationGroupUuid = uuid();
 const encodedUrlUuid = uuid();
-const endpointUuid = uuid();
 const downloadUuid = uuid();
 
 const workflow = {
   WFWorkflowActions: [
     {
+      WFWorkflowActionIdentifier: "is.workflow.actions.detect.link",
+      WFWorkflowActionParameters: {
+        UUID: sharedUrlsUuid,
+        WFInput: tokenString(objectReplacementCharacter, {
+          "{0, 1}": {
+            Type: "ExtensionInput"
+          }
+        })
+      }
+    },
+    {
       WFWorkflowActionIdentifier: "is.workflow.actions.count",
       WFWorkflowActionParameters: {
-        Input: shortcutInput(),
-        UUID: inputCountUuid,
+        Input: actionOutput(sharedUrlsUuid, "URLs"),
+        UUID: sharedUrlCountUuid,
         WFCountType: "Items"
       }
     },
     {
       WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
       WFWorkflowActionParameters: {
-        GroupingIdentifier: inputGroupUuid,
+        GroupingIdentifier: sourceGroupUuid,
         WFCondition: 0,
         WFConditionalLegacyComparisonBehavior: 1,
         WFControlFlowMode: 0,
         WFInput: {
           Type: "Variable",
-          Variable: actionOutput(inputCountUuid, "Count")
+          Variable: actionOutput(sharedUrlCountUuid, "Count")
         },
         WFNumberValue: 1
       }
@@ -51,72 +64,102 @@ const workflow = {
       }
     },
     {
+      WFWorkflowActionIdentifier: "is.workflow.actions.detect.link",
+      WFWorkflowActionParameters: {
+        UUID: clipboardUrlsUuid,
+        WFInput: tokenString(objectReplacementCharacter, {
+          "{0, 1}": {
+            OutputUUID: clipboardUuid,
+            Type: "ActionOutput",
+            OutputName: "Clipboard"
+          }
+        })
+      }
+    },
+    {
       WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
       WFWorkflowActionParameters: {
-        GroupingIdentifier: inputGroupUuid,
+        GroupingIdentifier: sourceGroupUuid,
         WFControlFlowMode: 1
       }
     },
     {
       WFWorkflowActionIdentifier: "is.workflow.actions.getvariable",
       WFWorkflowActionParameters: {
-        WFVariable: shortcutInput()
+        WFVariable: actionOutput(sharedUrlsUuid, "URLs")
       }
     },
     {
       WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
       WFWorkflowActionParameters: {
-        GroupingIdentifier: inputGroupUuid,
-        UUID: selectedInputUuid,
+        GroupingIdentifier: sourceGroupUuid,
+        UUID: selectedUrlsUuid,
         WFControlFlowMode: 2
       }
     },
     {
-      WFWorkflowActionIdentifier: "is.workflow.actions.detect.link",
+      WFWorkflowActionIdentifier: "is.workflow.actions.count",
       WFWorkflowActionParameters: {
-        UUID: detectedUrlUuid,
-        WFInput: tokenString(objectReplacementCharacter, {
-          "{0, 1}": {
-            Aggrandizements: [
-              {
-                Type: "WFCoercionVariableAggrandizement",
-                CoercionItemClass: "WFURLContentItem"
-              }
-            ],
-            OutputUUID: selectedInputUuid,
-            Type: "ActionOutput",
-            OutputName: "If Result"
-          }
-        })
+        Input: actionOutput(selectedUrlsUuid, "If Result"),
+        UUID: selectedUrlCountUuid,
+        WFCountType: "Items"
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
+      WFWorkflowActionParameters: {
+        GroupingIdentifier: validationGroupUuid,
+        WFCondition: 0,
+        WFConditionalLegacyComparisonBehavior: 1,
+        WFControlFlowMode: 0,
+        WFInput: {
+          Type: "Variable",
+          Variable: actionOutput(selectedUrlCountUuid, "Count")
+        },
+        WFNumberValue: 1
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.alert",
+      WFWorkflowActionParameters: {
+        WFAlertActionCancelButtonShown: 0,
+        WFAlertActionMessage: "Share a YouTube URL to this shortcut, or copy the URL first and run the shortcut again.",
+        WFAlertActionTitle: "No URL Found"
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.exit",
+      WFWorkflowActionParameters: {}
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
+      WFWorkflowActionParameters: {
+        GroupingIdentifier: validationGroupUuid,
+        WFControlFlowMode: 2
       }
     },
     {
       WFWorkflowActionIdentifier: "is.workflow.actions.urlencode",
       WFWorkflowActionParameters: {
-        WFInput: actionOutput(detectedUrlUuid, "URLs"),
-        UUID: encodedUrlUuid
-      }
-    },
-    {
-      WFWorkflowActionIdentifier: "is.workflow.actions.gettext",
-      WFWorkflowActionParameters: {
-        WFTextActionText: tokenString(`${baseUrl}/api/shortcut/download?url=${objectReplacementCharacter}`, {
-          "{50, 1}": {
-            OutputUUID: encodedUrlUuid,
+        WFInput: tokenString(objectReplacementCharacter, {
+          "{0, 1}": {
+            OutputUUID: selectedUrlsUuid,
             Type: "ActionOutput",
-            OutputName: "URL Encoded Text"
+            OutputName: "If Result"
           }
         }),
-        UUID: endpointUuid
+        UUID: encodedUrlUuid
       }
     },
     {
       WFWorkflowActionIdentifier: "is.workflow.actions.downloadurl",
       WFWorkflowActionParameters: {
-        WFURL: variableAttachment({
-          OutputUUID: endpointUuid,
-          Type: "ActionOutput",
-          OutputName: "Text"
+        WFURL: tokenString(`${baseUrl}/api/shortcut/download?url=${objectReplacementCharacter}`, {
+          "{50, 1}": {
+            OutputUUID: encodedUrlUuid,
+            Type: "ActionOutput",
+            OutputName: "URL Encoded Text"
+          }
         }),
         Advanced: false,
         UUID: downloadUuid
@@ -178,12 +221,6 @@ try {
 
 function uuid() {
   return crypto.randomUUID().toUpperCase();
-}
-
-function shortcutInput() {
-  return variableAttachment({
-    Type: "ExtensionInput"
-  });
 }
 
 function actionOutput(outputUuid, outputName) {
