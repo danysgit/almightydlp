@@ -23,7 +23,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## iOS Shortcut
 
-AlmightyDLP includes a signed iOS shortcut named `Save with AlmightyDLP`. Install it from the app home screen, then share a supported link to the shortcut from the iOS share sheet. The shortcut calls AlmightyDLP, downloads the prepared iPhone-compatible video, and saves it to Photos.
+AlmightyDLP includes a signed iOS shortcut named `Save with AlmightyDLP`. Install it from the app home screen, then share a supported link to the shortcut from the iOS share sheet. The shortcut calls AlmightyDLP, downloads the prepared iPhone-compatible video, and saves it to Photos. If you run the shortcut manually from the Shortcuts app, it uses a URL from the clipboard.
 
 The bundled shortcut uses `https://almightydlp.com/api/shortcut/download`. If you prefer to use an iCloud Shortcuts share link instead, set `SHORTCUT_INSTALL_URL` to the generated `https://www.icloud.com/shortcuts/...` link and the home screen install button will redirect there.
 

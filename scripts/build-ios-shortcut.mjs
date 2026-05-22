@@ -11,33 +11,98 @@ const outputPath = path.resolve("public", "save-with-almightydlp.shortcut");
 const baseUrl = "https://almightydlp.com";
 const objectReplacementCharacter = "\uFFFC";
 
-const shortcutInputUuid = uuid();
+const inputCountUuid = uuid();
+const inputGroupUuid = uuid();
+const clipboardUuid = uuid();
+const selectedInputUuid = uuid();
+const detectedUrlUuid = uuid();
+const encodedUrlUuid = uuid();
 const endpointUuid = uuid();
 const downloadUuid = uuid();
 
 const workflow = {
   WFWorkflowActions: [
     {
+      WFWorkflowActionIdentifier: "is.workflow.actions.count",
+      WFWorkflowActionParameters: {
+        Input: shortcutInput(),
+        UUID: inputCountUuid,
+        WFCountType: "Items"
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
+      WFWorkflowActionParameters: {
+        GroupingIdentifier: inputGroupUuid,
+        WFCondition: 0,
+        WFConditionalLegacyComparisonBehavior: 1,
+        WFControlFlowMode: 0,
+        WFInput: {
+          Type: "Variable",
+          Variable: actionOutput(inputCountUuid, "Count")
+        },
+        WFNumberValue: 1
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.getclipboard",
+      WFWorkflowActionParameters: {
+        UUID: clipboardUuid
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
+      WFWorkflowActionParameters: {
+        GroupingIdentifier: inputGroupUuid,
+        WFControlFlowMode: 1
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.getvariable",
+      WFWorkflowActionParameters: {
+        WFVariable: shortcutInput()
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.conditional",
+      WFWorkflowActionParameters: {
+        GroupingIdentifier: inputGroupUuid,
+        UUID: selectedInputUuid,
+        WFControlFlowMode: 2
+      }
+    },
+    {
+      WFWorkflowActionIdentifier: "is.workflow.actions.detect.link",
+      WFWorkflowActionParameters: {
+        UUID: detectedUrlUuid,
+        WFInput: tokenString(objectReplacementCharacter, {
+          "{0, 1}": {
+            Aggrandizements: [
+              {
+                Type: "WFCoercionVariableAggrandizement",
+                CoercionItemClass: "WFURLContentItem"
+              }
+            ],
+            OutputUUID: selectedInputUuid,
+            Type: "ActionOutput",
+            OutputName: "If Result"
+          }
+        })
+      }
+    },
+    {
       WFWorkflowActionIdentifier: "is.workflow.actions.urlencode",
       WFWorkflowActionParameters: {
-        WFInput: variableAttachment({
-          Type: "ExtensionInput",
-          Aggrandizements: [
-            {
-              Type: "WFCoercionVariableAggrandizement",
-              CoercionItemClass: "WFStringContentItem"
-            }
-          ]
-        }),
-        UUID: shortcutInputUuid
+        WFInput: actionOutput(detectedUrlUuid, "URLs"),
+        UUID: encodedUrlUuid
       }
     },
     {
       WFWorkflowActionIdentifier: "is.workflow.actions.gettext",
       WFWorkflowActionParameters: {
         WFTextActionText: tokenString(`${baseUrl}/api/shortcut/download?url=${objectReplacementCharacter}`, {
-          "{52, 1}": {
-            OutputUUID: shortcutInputUuid,
+          "{50, 1}": {
+            OutputUUID: encodedUrlUuid,
             Type: "ActionOutput",
             OutputName: "URL Encoded Text"
           }
@@ -77,7 +142,8 @@ const workflow = {
   WFWorkflowImportQuestions: [],
   WFWorkflowInputContentItemClasses: [
     "WFURLContentItem",
-    "WFSafariWebPageContentItem"
+    "WFSafariWebPageContentItem",
+    "WFStringContentItem"
   ],
   WFWorkflowMinimumClientVersion: 900,
   WFWorkflowName: workflowName,
@@ -112,6 +178,20 @@ try {
 
 function uuid() {
   return crypto.randomUUID().toUpperCase();
+}
+
+function shortcutInput() {
+  return variableAttachment({
+    Type: "ExtensionInput"
+  });
+}
+
+function actionOutput(outputUuid, outputName) {
+  return variableAttachment({
+    OutputUUID: outputUuid,
+    Type: "ActionOutput",
+    OutputName: outputName
+  });
 }
 
 function variableAttachment(value) {
