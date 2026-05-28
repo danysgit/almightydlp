@@ -30,6 +30,19 @@ let reconnectAttempts = 0;
 
 copyButton.addEventListener("click", () => copyLinks());
 profile.addEventListener("change", () => updateProfileHint());
+mediaUrl.addEventListener("paste", (event) => {
+  const pastedText = event.clipboardData?.getData("text") || "";
+  const pastedUrl = extractFirstHttpUrl(pastedText);
+  if (!pastedUrl) {
+    return;
+  }
+
+  event.preventDefault();
+  mediaUrl.value = pastedUrl;
+  clearMediaUrlValidity();
+});
+mediaUrl.addEventListener("input", () => clearMediaUrlValidity());
+mediaUrl.addEventListener("blur", () => replaceInputWithUrl());
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && activeJobId) {
     pollJob(activeJobId);
@@ -89,8 +102,10 @@ function isIOSMobileSafari() {
 }
 
 async function startResolve() {
-  const url = mediaUrl.value.trim();
+  const url = replaceInputWithUrl();
   if (!url) {
+    mediaUrl.setCustomValidity("Please paste a link.");
+    mediaUrl.reportValidity();
     mediaUrl.focus();
     return;
   }
@@ -121,6 +136,31 @@ async function startResolve() {
     renderFailure(error.message || "Could not get links.");
     setBusy(resolveButton, false, "Get download links");
   }
+}
+
+function replaceInputWithUrl() {
+  const url = extractFirstHttpUrl(mediaUrl.value);
+  if (url) {
+    mediaUrl.value = url;
+  }
+  return url;
+}
+
+function extractFirstHttpUrl(value) {
+  const input = String(value || "").trim();
+  const match = input.match(/https?:\/\/[^\s<>"']+/i);
+  const candidate = match ? match[0] : input;
+
+  try {
+    const url = new URL(candidate.replace(/[)\].,!?;:]+$/g, ""));
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function clearMediaUrlValidity() {
+  mediaUrl.setCustomValidity("");
 }
 
 async function pollJob(jobId) {
