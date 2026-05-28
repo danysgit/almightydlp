@@ -41,8 +41,11 @@ const jobs = new Map();
 const blockedMediaAddressRanges = createBlockedMediaAddressRanges();
 const IPHONE_NATIVE_FORMAT_SELECTOR = [
   "bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=avc1]+ba[ext=mp4]",
   "bv*[ext=mp4][vcodec^=hvc1]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=hvc1]+ba[ext=mp4]",
   "bv*[ext=mp4][vcodec^=hev1]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=hev1]+ba[ext=mp4]",
   "b[ext=mp4][vcodec^=avc1]",
   "b[ext=mp4][vcodec^=hvc1]",
   "b[ext=mp4][vcodec^=hev1]"
@@ -766,11 +769,11 @@ function isIphoneCompatibleVideoFormat(format) {
 }
 
 function isIphoneCompatibleAudioFormat(format) {
-  const ext = String(format.ext || "").toLowerCase();
-  const codec = normalizeCodec(format.acodec);
+  const ext = audioExtension(format);
+  const codec = inferAudioCodec(format);
   return IPHONE_AUDIO_EXTENSIONS.has(ext)
     && codec !== "none"
-    && startsWithAny(codec, IPHONE_AUDIO_CODEC_PREFIXES);
+    && (!codec || startsWithAny(codec, IPHONE_AUDIO_CODEC_PREFIXES));
 }
 
 function isIphoneCompatibleDirectEntry(entry, ext) {
@@ -789,6 +792,34 @@ function normalizeCodec(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function audioExtension(format) {
+  const audioExt = String(format.audio_ext || "").toLowerCase();
+  if (audioExt) {
+    return audioExt;
+  }
+  if (format.vcodec && format.vcodec !== "none") {
+    return "";
+  }
+  return String(format.ext || "").toLowerCase();
+}
+
+function inferAudioCodec(format) {
+  const codec = normalizeCodec(format.acodec);
+  if (codec) {
+    return codec;
+  }
+
+  const url = String(format.url || "").toLowerCase();
+  if (url.includes("/mp4a/") || url.includes("mp4a.")) {
+    return "mp4a";
+  }
+  if (url.includes("/aac/") || url.includes(".aac")) {
+    return "aac";
+  }
+
+  return "";
+}
+
 function startsWithAny(value, prefixes) {
   return prefixes.some((prefix) => value.startsWith(prefix));
 }
@@ -803,15 +834,25 @@ function isSimpleDownloadFormat(format) {
 }
 
 function hasAudioAndVideo(format) {
-  return format.vcodec && format.vcodec !== "none" && format.acodec && format.acodec !== "none";
+  return format.vcodec && format.vcodec !== "none" && hasAudioTrack(format);
 }
 
 function hasVideoOnly(format) {
-  return format.vcodec && format.vcodec !== "none" && (!format.acodec || format.acodec === "none");
+  return format.vcodec && format.vcodec !== "none" && !hasAudioTrack(format);
 }
 
 function isAudioOnly(format) {
-  return (!format.vcodec || format.vcodec === "none") && format.acodec && format.acodec !== "none";
+  return (!format.vcodec || format.vcodec === "none") && hasAudioTrack(format);
+}
+
+function hasAudioTrack(format) {
+  const codec = normalizeCodec(format.acodec);
+  if (codec && codec !== "none") {
+    return true;
+  }
+
+  const audioExt = audioExtension(format);
+  return Boolean(audioExt && audioExt !== "none");
 }
 
 function explainFallback(formats, profile, directSourceUrl) {
