@@ -42,13 +42,19 @@ const blockedMediaAddressRanges = createBlockedMediaAddressRanges();
 const IPHONE_NATIVE_FORMAT_SELECTOR = [
   "bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]",
   "bv*[ext=mp4][vcodec^=avc1]+ba[ext=mp4]",
+  "bv*[ext=mp4][vcodec^=h264]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=h264]+ba[ext=mp4]",
   "bv*[ext=mp4][vcodec^=hvc1]+ba[ext=m4a]",
   "bv*[ext=mp4][vcodec^=hvc1]+ba[ext=mp4]",
   "bv*[ext=mp4][vcodec^=hev1]+ba[ext=m4a]",
   "bv*[ext=mp4][vcodec^=hev1]+ba[ext=mp4]",
+  "bv*[ext=mp4][vcodec^=h265]+ba[ext=m4a]",
+  "bv*[ext=mp4][vcodec^=h265]+ba[ext=mp4]",
   "b[ext=mp4][vcodec^=avc1]",
+  "b[ext=mp4][vcodec^=h264]",
   "b[ext=mp4][vcodec^=hvc1]",
-  "b[ext=mp4][vcodec^=hev1]"
+  "b[ext=mp4][vcodec^=hev1]",
+  "b[ext=mp4][vcodec^=h265]"
 ].join("/");
 const IPHONE_VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov"]);
 const IPHONE_AUDIO_EXTENSIONS = new Set(["m4a", "mp4", "aac"]);
@@ -794,8 +800,11 @@ function normalizeCodec(value) {
 
 function audioExtension(format) {
   const audioExt = String(format.audio_ext || "").toLowerCase();
-  if (audioExt) {
+  if (audioExt && audioExt !== "none") {
     return audioExt;
+  }
+  if (hasExplicitAudioCodec(format)) {
+    return String(format.ext || "").toLowerCase();
   }
   if (format.vcodec && format.vcodec !== "none") {
     return "";
@@ -846,13 +855,17 @@ function isAudioOnly(format) {
 }
 
 function hasAudioTrack(format) {
-  const codec = normalizeCodec(format.acodec);
-  if (codec && codec !== "none") {
+  if (hasExplicitAudioCodec(format)) {
     return true;
   }
 
   const audioExt = audioExtension(format);
   return Boolean(audioExt && audioExt !== "none");
+}
+
+function hasExplicitAudioCodec(format) {
+  const codec = normalizeCodec(format.acodec);
+  return Boolean(codec && codec !== "none");
 }
 
 function explainFallback(formats, profile, directSourceUrl) {
@@ -1104,7 +1117,7 @@ function normalizeUrl(value) {
     return "";
   }
 
-  const trimmed = value.trim();
+  const trimmed = extractFirstHttpUrl(value.trim());
   if (!trimmed) {
     return "";
   }
@@ -1118,6 +1131,12 @@ function normalizeUrl(value) {
   } catch {
     return "";
   }
+}
+
+function extractFirstHttpUrl(value) {
+  const match = value.match(/https?:\/\/[^\s<>"']+/i);
+  const candidate = match ? match[0] : value;
+  return candidate.replace(/[)\].,!?;:]+$/g, "");
 }
 
 function isUsableUrl(value) {
