@@ -345,13 +345,79 @@ async function resolveCookieFile(cookieFilePath) {
 }
 
 async function normalizeMediaUrl(value) {
-  const url = normalizeUrl(value);
+  let url = normalizeUrl(value);
   if (!url) {
     return "";
   }
 
   await assertAllowedMediaUrl(url);
+  url = await normalizeTikTokMediaUrl(url);
+  await assertAllowedMediaUrl(url);
   return url;
+}
+
+async function normalizeTikTokMediaUrl(value) {
+  const parsed = parseHttpUrl(value);
+  if (!parsed || !isTikTokHostname(parsed.hostname)) {
+    return value;
+  }
+
+  const expandedUrl = isTikTokShortShareUrl(parsed) ? await expandTikTokShortShareUrl(value) : value;
+  return rewriteTikTokPhotoUrl(expandedUrl);
+}
+
+async function expandTikTokShortShareUrl(value) {
+  try {
+    const response = await fetch(value, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000)
+    });
+    return response.url || value;
+  } catch {
+    try {
+      const response = await fetch(value, {
+        method: "GET",
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000)
+      });
+      return response.url || value;
+    } catch {
+      return value;
+    }
+  }
+}
+
+function rewriteTikTokPhotoUrl(value) {
+  const parsed = parseHttpUrl(value);
+  if (!parsed || !isTikTokHostname(parsed.hostname)) {
+    return value;
+  }
+
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  const photoIndex = parts.indexOf("photo");
+  if (photoIndex < 0 || !parts[photoIndex + 1]) {
+    return value;
+  }
+
+  parts[photoIndex] = "video";
+  parsed.pathname = `/${parts.join("/")}`;
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
+}
+
+function isTikTokShortShareUrl(parsed) {
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  return isTikTokHostname(parsed.hostname) && parts[0] === "t" && Boolean(parts[1]);
+}
+
+function isTikTokHostname(hostname) {
+  const normalized = String(hostname || "").toLowerCase().replace(/\.$/, "");
+  return normalized === "tiktok.com"
+    || normalized === "www.tiktok.com"
+    || normalized === "vm.tiktok.com"
+    || normalized === "vt.tiktok.com";
 }
 
 async function assertAllowedMediaUrl(value) {
@@ -536,7 +602,7 @@ function resolveEntryPlan(entry, profile, index) {
   const title = entry.title || `Item ${index}`;
   const downloadCandidate = profile === "video" ? videoCandidate || directCandidate : directCandidate;
   const ext = downloadCandidate?.ext || defaultExtensionForProfile(profile);
-  const payload = sourceUrl ? buildDownloadPayload(sourceUrl, title, ext, profile, downloadCandidate) : null;
+  const payload = sourceUrl && downloadCandidate ? buildDownloadPayload(sourceUrl, title, ext, profile, downloadCandidate) : null;
   const downloadUrl = payload ? buildDownloadUrl(payload) : "";
   const exposedDirectUrl = canExposeDirectUrl(downloadCandidate, directCandidate) ? directCandidate.url : "";
   const needsProcessing = Boolean(downloadUrl) && (!downloadCandidate || Boolean(downloadCandidate.needsProcessing));
