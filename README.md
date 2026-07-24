@@ -75,7 +75,7 @@ For manual Unraid installs, use the `my-AlmightyDLP.xml` template above.
 | `AUTH_PASSWORD` | empty | Optional Basic Auth password |
 | `COOKIE_FILE` | `/config/cookies/cookies.txt` | Optional cookies file path, used only when the file exists |
 | `TEMP_DIR` | `/config/tmp` | Temporary workspace |
-| `CLEANUP_AFTER_MINUTES` | `180` | Finished job cleanup window |
+| `CLEANUP_AFTER_MINUTES` | `180` | Finished job and abandoned temporary-download cleanup window |
 | `DOWNLOAD_TOKEN_SECRET` | auto-generated | Optional signing secret override |
 | `PUID` | `99` | Container user id |
 | `PGID` | `100` | Container group id |

@@ -39,6 +39,7 @@ const config = {
 };
 
 const jobs = new Map();
+const activeDownloadTempRoots = new Set();
 const blockedMediaAddressRanges = createBlockedMediaAddressRanges();
 const IPHONE_NATIVE_FORMAT_SELECTOR = [
   "bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]",
@@ -63,6 +64,10 @@ const IPHONE_VIDEO_CODEC_PREFIXES = ["avc1", "h264", "h.264", "hvc1", "hev1", "h
 const IPHONE_AUDIO_CODEC_PREFIXES = ["mp4a", "aac"];
 
 await fs.mkdir(config.tempDir, { recursive: true });
+const abandonedTempRootCount = await cleanStaleDownloadTempRoots({ removeAll: true });
+if (abandonedTempRootCount > 0) {
+  console.log(`Removed ${abandonedTempRootCount} abandoned temporary download(s).`);
+}
 await fs.mkdir(path.dirname(persistedSecretPath), { recursive: true });
 
 app.disable("x-powered-by");
@@ -230,7 +235,12 @@ app.use((_req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
-setInterval(cleanOldJobs, 5 * 60 * 1000).unref();
+setInterval(() => {
+  cleanOldJobs();
+  cleanStaleDownloadTempRoots().catch((error) => {
+    console.error(`Could not clean stale temporary downloads: ${error.message}`);
+  });
+}, 5 * 60 * 1000).unref();
 
 app.listen(config.port, config.host, () => {
   console.log(`${config.appTitle} listening on http://${config.host}:${config.port}`);
@@ -282,16 +292,16 @@ async function sendDownloadPayload(res, payload) {
 
     const absolutePath = path.join(tempRoot, resolvedFile);
     res.on("finish", () => {
-      fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+      removeDownloadTempRoot(tempRoot).catch(() => {});
     });
     res.on("close", () => {
-      fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+      removeDownloadTempRoot(tempRoot).catch(() => {});
     });
 
     return res.download(absolutePath, resolvedFile);
   } catch (error) {
     if (tempRoot) {
-      await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
+      await removeDownloadTempRoot(tempRoot).catch(() => {});
     }
     return res.status(502).send(error.message || "Could not fetch this file.");
   }
@@ -647,7 +657,47 @@ function isBlockedMediaAddress(address, family) {
 
 async function createDownloadTempRoot() {
   await fs.mkdir(config.tempDir, { recursive: true });
-  return fs.mkdtemp(path.join(config.tempDir, "download-"));
+  const tempRoot = await fs.mkdtemp(path.join(config.tempDir, "download-"));
+  activeDownloadTempRoots.add(tempRoot);
+  return tempRoot;
+}
+
+async function removeDownloadTempRoot(tempRoot) {
+  activeDownloadTempRoots.delete(tempRoot);
+  await fs.rm(tempRoot, { recursive: true, force: true });
+}
+
+async function cleanStaleDownloadTempRoots({ removeAll = false } = {}) {
+  const entries = await fs.readdir(config.tempDir, { withFileTypes: true });
+  const cutoff = Date.now() - (config.cleanupAfterMinutes * 60 * 1000);
+  let removedCount = 0;
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith("download-")) {
+      continue;
+    }
+
+    const tempRoot = path.join(config.tempDir, entry.name);
+    if (activeDownloadTempRoots.has(tempRoot)) {
+      continue;
+    }
+
+    if (!removeAll) {
+      const stats = await fs.stat(tempRoot).catch(() => null);
+      if (!stats || stats.mtimeMs >= cutoff) {
+        continue;
+      }
+    }
+
+    try {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+      removedCount += 1;
+    } catch (error) {
+      console.error(`Could not remove stale temporary download ${entry.name}: ${error.message}`);
+    }
+  }
+
+  return removedCount;
 }
 
 async function findFirstFile(dir) {
