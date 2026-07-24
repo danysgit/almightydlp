@@ -601,7 +601,9 @@ function resolveEntryPlan(entry, profile, index) {
   const sourceUrl = entry.webpage_url || entry.original_url || directSourceUrl || "";
   const title = entry.title || `Item ${index}`;
   const downloadCandidate = profile === "video" ? videoCandidate || directCandidate : directCandidate;
-  const ext = downloadCandidate?.ext || defaultExtensionForProfile(profile);
+  const ext = profile === "audio"
+    ? defaultExtensionForProfile(profile)
+    : downloadCandidate?.ext || defaultExtensionForProfile(profile);
   const payload = sourceUrl && downloadCandidate ? buildDownloadPayload(sourceUrl, title, ext, profile, downloadCandidate) : null;
   const downloadUrl = payload ? buildDownloadUrl(payload) : "";
   const exposedDirectUrl = canExposeDirectUrl(downloadCandidate, directCandidate) ? directCandidate.url : "";
@@ -732,7 +734,7 @@ function directEntryCandidate(entry, directSourceUrl, profile, options = {}) {
   const audioExts = new Set(["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus"]);
   const videoExts = new Set(["mp4", "mkv", "webm", "mov", "m4v"]);
 
-  if (profile === "audio" && !audioExts.has(ext)) {
+  if (profile === "audio" && !audioExts.has(ext) && !videoExts.has(ext)) {
     return null;
   }
 
@@ -746,8 +748,12 @@ function directEntryCandidate(entry, directSourceUrl, profile, options = {}) {
 
   return {
     url: directSourceUrl,
-    ext,
-    label: ext ? `Direct file • ${ext}` : "Direct file"
+    ext: profile === "audio" ? "mp3" : ext,
+    label: profile === "audio"
+      ? "Extract audio • mp3"
+      : ext ? `Direct file • ${ext}` : "Direct file",
+    needsProcessing: profile === "audio",
+    formatSelector: "b"
   };
 }
 
@@ -1074,7 +1080,15 @@ function buildDownloadArgs(payload, outputTemplate) {
   }
 
   if (payload.profile === "audio") {
-    args.push("-x", "--audio-format", "mp3", "--audio-quality", "0");
+    args.push(
+      "-f",
+      payload.formatSelector || "ba/b",
+      "-x",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "0"
+    );
   } else if (payload.profile === "video") {
     args.push("-f", payload.formatSelector || IPHONE_NATIVE_FORMAT_SELECTOR, "--merge-output-format", "mp4");
   } else {
@@ -1091,9 +1105,15 @@ function shouldPassFfmpegLocation(value) {
 
 async function runCommand(command, args, options = {}) {
   const { captureStdout = true } = options;
+  const pythonPath = [process.cwd(), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
 
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { env: process.env });
+    const child = spawn(command, args, {
+      env: {
+        ...process.env,
+        PYTHONPATH: pythonPath
+      }
+    });
     let stdout = "";
     let stderr = "";
 

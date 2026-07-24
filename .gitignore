@@ -2,6 +2,8 @@ node_modules
 .DS_Store
 .env
 npm-debug.log*
+__pycache__/
+*.py[cod]
 .agents/
 .claude/
 .codex/

@@ -4,6 +4,8 @@
 
 AlmightyDLP is a self-hosted web app powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp). Paste a supported media link, choose what you want to save, and get direct links or download-ready results in a simple mobile-friendly interface.
 
+AlmightyDLP includes a site-specific extractor for `erothots.co` video pages because the generic `yt-dlp` extractor mistakes page JavaScript for a second media item.
+
 Public app: [almightydlp.com](https://almightydlp.com)
 
 ## What it is for
