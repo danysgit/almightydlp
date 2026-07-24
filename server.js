@@ -6,6 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { Readable } from "node:stream";
 import express from "express";
 
 const app = express();
@@ -259,6 +260,10 @@ async function inspectUrl(url) {
 async function sendDownloadPayload(res, payload) {
   await assertAllowedMediaUrl(payload.sourceUrl);
 
+  if (payload.streamDirect) {
+    return streamDirectDownload(res, payload);
+  }
+
   let tempRoot = "";
 
   try {
@@ -289,6 +294,124 @@ async function sendDownloadPayload(res, payload) {
       await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
     }
     return res.status(502).send(error.message || "Could not fetch this file.");
+  }
+}
+
+async function streamDirectDownload(res, payload) {
+  const metadata = await inspectUrl(payload.sourceUrl);
+  const refreshedPlan = resolveFirstDownloadPlan(metadata, payload.profile);
+  const directUrl = refreshedPlan?.payload?.directUrl || "";
+
+  if (!directUrl) {
+    throw new Error("This site did not provide a streamable media file.");
+  }
+
+  const abortController = new AbortController();
+  const connectionTimeout = setTimeout(() => abortController.abort(), 20_000);
+  let response;
+
+  try {
+    response = await fetchAllowedMediaResponse(
+      directUrl,
+      refreshedPlan.payload.requestHeaders,
+      abortController.signal
+    );
+  } finally {
+    clearTimeout(connectionTimeout);
+  }
+
+  if (!response.body) {
+    throw new Error("The media host returned an empty response.");
+  }
+
+  res.attachment(payload.filename);
+  copyResponseHeader(response, res, "content-type");
+  copyResponseHeader(response, res, "content-length");
+  copyResponseHeader(response, res, "last-modified");
+  copyResponseHeader(response, res, "accept-ranges");
+
+  const remoteStream = Readable.fromWeb(response.body);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (callback, value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      callback(value);
+    };
+
+    res.once("finish", () => settle(resolve));
+    res.once("close", () => {
+      abortController.abort();
+      remoteStream.destroy();
+      settle(resolve);
+    });
+    remoteStream.once("error", (error) => {
+      if (res.headersSent) {
+        res.destroy(error);
+        settle(resolve);
+      } else {
+        settle(reject, error);
+      }
+    });
+    remoteStream.pipe(res);
+  });
+}
+
+async function fetchAllowedMediaResponse(initialUrl, requestHeaders = {}, signal) {
+  let currentUrl = initialUrl;
+  const headers = sanitizeMediaRequestHeaders(requestHeaders);
+
+  for (let redirectCount = 0; redirectCount <= 5; redirectCount += 1) {
+    await assertAllowedMediaUrl(currentUrl);
+    const response = await fetch(currentUrl, {
+      headers,
+      redirect: "manual",
+      signal
+    });
+
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      if (!response.ok) {
+        throw new Error(`The media host returned HTTP ${response.status}.`);
+      }
+      return response;
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error("The media host returned an invalid redirect.");
+    }
+    await response.body?.cancel();
+    currentUrl = new URL(location, currentUrl).toString();
+  }
+
+  throw new Error("The media host redirected too many times.");
+}
+
+function sanitizeMediaRequestHeaders(requestHeaders) {
+  const allowedHeaderNames = new Map([
+    ["accept", "Accept"],
+    ["accept-language", "Accept-Language"],
+    ["referer", "Referer"],
+    ["user-agent", "User-Agent"]
+  ]);
+  const headers = { "Accept-Encoding": "identity" };
+
+  for (const [name, value] of Object.entries(requestHeaders || {})) {
+    const allowedName = allowedHeaderNames.get(name.toLowerCase());
+    if (allowedName && typeof value === "string" && !/[\r\n]/.test(value)) {
+      headers[allowedName] = value;
+    }
+  }
+
+  return headers;
+}
+
+function copyResponseHeader(response, res, headerName) {
+  const value = response.headers.get(headerName);
+  if (value) {
+    res.setHeader(headerName, value);
   }
 }
 
@@ -711,7 +834,8 @@ function chooseDirectCandidate({ profile, entry, directSourceUrl, progressiveFor
     return {
       url: directSourceUrl,
       ext: String(entry.ext || "").toLowerCase(),
-      label: "Direct file"
+      label: "Direct file",
+      httpHeaders: entry.http_headers || {}
     };
   }
 
@@ -753,7 +877,8 @@ function directEntryCandidate(entry, directSourceUrl, profile, options = {}) {
       ? "Extract audio • mp3"
       : ext ? `Direct file • ${ext}` : "Direct file",
     needsProcessing: profile === "audio",
-    formatSelector: "b"
+    formatSelector: "b",
+    httpHeaders: entry.http_headers || {}
   };
 }
 
@@ -792,6 +917,7 @@ function rankFormats(formats) {
       vcodec: String(format.vcodec || ""),
       acodec: String(format.acodec || ""),
       protocol: String(format.protocol || ""),
+      httpHeaders: format.http_headers || {},
       label: buildFormatLabel(format),
       score: formatScore(format)
     }))
@@ -969,7 +1095,14 @@ function buildDownloadPayload(sourceUrl, title, ext, profile, candidate = {}) {
     sourceUrl,
     filename: sanitizeFilename(title, ext),
     profile,
-    formatSelector: candidate?.formatSelector || ""
+    formatSelector: candidate?.formatSelector || "",
+    directUrl: candidate?.url || "",
+    requestHeaders: candidate?.httpHeaders || {},
+    streamDirect: Boolean(
+      candidate?.url
+      && !candidate?.needsProcessing
+      && profile !== "audio"
+    )
   };
 }
 
@@ -978,7 +1111,8 @@ function buildDownloadUrl(payload) {
     sourceUrl: payload.sourceUrl,
     filename: payload.filename,
     profile: payload.profile,
-    formatSelector: payload.formatSelector || ""
+    formatSelector: payload.formatSelector || "",
+    streamDirect: Boolean(payload.streamDirect)
   });
   const suffix = `/api/download?token=${encodeURIComponent(token)}`;
   return config.baseUrl ? new URL(suffix, config.baseUrl).toString() : suffix;
@@ -1019,6 +1153,7 @@ function verifyDownloadToken(token) {
     throw new Error("Invalid download URL.");
   }
   payload.formatSelector = typeof payload.formatSelector === "string" ? payload.formatSelector : "";
+  payload.streamDirect = Boolean(payload.streamDirect);
 
   return payload;
 }
