@@ -117,3 +117,30 @@ test("Instagram unknown-codec progressive MP4 remains directly downloadable", ()
   assert.equal(plan.item.directUrl, "");
   assert.equal(plan.item.status, "ready");
 });
+
+test("TikTok media uses yt-dlp instead of direct CDN streaming", () => {
+  const plan = resolveEntryPlan({
+    id: "tiktok-sample",
+    title: "TikTok sample",
+    webpage_url: "https://www.tiktok.com/@example/video/123",
+    formats: [
+      {
+        format_id: "h264_720p",
+        ext: "mp4",
+        protocol: "https",
+        vcodec: "h264",
+        acodec: "aac",
+        height: 1280,
+        http_headers: {
+          "User-Agent": "TikTok browser agent",
+          Referer: "https://www.tiktok.com/@example/video/123"
+        },
+        url: "https://v19-webapp-prime.us.tiktok.com/video/example"
+      }
+    ]
+  }, "video", 1);
+
+  assert.equal(plan.payload.formatSelector, "h264_720p");
+  assert.equal(plan.payload.streamDirect, false);
+  assert.equal(plan.item.status, "ready");
+});

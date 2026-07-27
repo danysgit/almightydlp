@@ -1213,8 +1213,14 @@ function buildDownloadPayload(sourceUrl, title, ext, profile, candidate = {}) {
       candidate?.url
       && !candidate?.needsProcessing
       && profile !== "audio"
+      && !requiresBackendDownload(sourceUrl)
     )
   };
+}
+
+function requiresBackendDownload(sourceUrl) {
+  const parsed = parseHttpUrl(sourceUrl);
+  return Boolean(parsed && isTikTokHostname(parsed.hostname));
 }
 
 function buildDownloadUrl(payload) {
