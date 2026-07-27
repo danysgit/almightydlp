@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { Readable } from "node:stream";
+import { pathToFileURL } from "node:url";
 import express from "express";
 
 const app = express();
@@ -235,16 +236,18 @@ app.use((_req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
-setInterval(() => {
-  cleanOldJobs();
-  cleanStaleDownloadTempRoots().catch((error) => {
-    console.error(`Could not clean stale temporary downloads: ${error.message}`);
-  });
-}, 5 * 60 * 1000).unref();
+if (isMainModule()) {
+  setInterval(() => {
+    cleanOldJobs();
+    cleanStaleDownloadTempRoots().catch((error) => {
+      console.error(`Could not clean stale temporary downloads: ${error.message}`);
+    });
+  }, 5 * 60 * 1000).unref();
 
-app.listen(config.port, config.host, () => {
-  console.log(`${config.appTitle} listening on http://${config.host}:${config.port}`);
-});
+  app.listen(config.port, config.host, () => {
+    console.log(`${config.appTitle} listening on http://${config.host}:${config.port}`);
+  });
+}
 
 async function runResolveJob(job) {
   job.status = "running";
@@ -757,10 +760,14 @@ function resolveEntryPlan(entry, profile, index) {
   const progressiveFormats = formats.filter((format) => isUsableUrl(format.url) && hasAudioAndVideo(format));
   const audioFormats = formats.filter((format) => isUsableUrl(format.url) && isAudioOnly(format));
   const videoOnlyFormats = formats.filter((format) => isUsableUrl(format.url) && hasVideoOnly(format));
+  const unknownProgressiveFormats = formats.filter((format) => (
+    isUsableUrl(format.url) && isUnknownProgressiveFormat(format)
+  ));
   const videoCandidate = chooseVideoDownloadCandidate({
     progressiveFormats,
     audioFormats,
-    videoOnlyFormats
+    videoOnlyFormats,
+    unknownProgressiveFormats
   });
   const directCandidate = chooseDirectCandidate({
     profile,
@@ -802,11 +809,16 @@ function resolveEntryPlan(entry, profile, index) {
   };
 }
 
-function chooseVideoDownloadCandidate({ progressiveFormats, audioFormats, videoOnlyFormats }) {
+function chooseVideoDownloadCandidate({
+  progressiveFormats,
+  audioFormats,
+  videoOnlyFormats,
+  unknownProgressiveFormats
+}) {
   return choosePreferredNativeCandidate(
     chooseNativeIphoneMergedCandidate(videoOnlyFormats, audioFormats),
     chooseNativeIphoneProgressiveCandidate(progressiveFormats)
-  );
+  ) || chooseUnknownProgressiveCandidate(unknownProgressiveFormats);
 }
 
 function choosePreferredNativeCandidate(mergedCandidate, progressiveCandidate) {
@@ -862,6 +874,25 @@ function chooseNativeIphoneProgressiveCandidate(progressiveFormats) {
     formatSelector: buildSingleFormatSelector(format) || IPHONE_NATIVE_FORMAT_SELECTOR,
     height: format.height,
     score: format.score
+  };
+}
+
+function chooseUnknownProgressiveCandidate(formats) {
+  const format = rankFormats(formats)[0];
+
+  if (!format) {
+    return null;
+  }
+
+  return {
+    url: format.url,
+    ext: "mp4",
+    label: format.label || "MP4",
+    needsProcessing: false,
+    formatSelector: buildSingleFormatSelector(format),
+    height: format.height,
+    score: format.score,
+    httpHeaders: format.httpHeaders
   };
 }
 
@@ -1051,13 +1082,10 @@ function audioExtension(format) {
   if (audioExt && audioExt !== "none") {
     return audioExt;
   }
-  if (hasExplicitAudioCodec(format)) {
+  if (hasExplicitAudioCodec(format) || inferAudioCodec(format)) {
     return String(format.ext || "").toLowerCase();
   }
-  if (format.vcodec && format.vcodec !== "none") {
-    return "";
-  }
-  return String(format.ext || "").toLowerCase();
+  return "";
 }
 
 function inferAudioCodec(format) {
@@ -1091,29 +1119,62 @@ function isSimpleDownloadFormat(format) {
 }
 
 function hasAudioAndVideo(format) {
-  return format.vcodec && format.vcodec !== "none" && hasAudioTrack(format);
+  return hasVideoTrack(format) && hasAudioTrack(format);
 }
 
 function hasVideoOnly(format) {
-  return format.vcodec && format.vcodec !== "none" && !hasAudioTrack(format);
+  return hasVideoTrack(format) && !hasAudioTrack(format);
 }
 
 function isAudioOnly(format) {
-  return (!format.vcodec || format.vcodec === "none") && hasAudioTrack(format);
+  return !hasVideoTrack(format) && hasAudioTrack(format);
 }
 
-function hasAudioTrack(format) {
-  if (hasExplicitAudioCodec(format)) {
+function hasVideoTrack(format) {
+  const codec = normalizeCodec(format.vcodec);
+  if (codec === "none") {
+    return false;
+  }
+  if (codec) {
     return true;
   }
 
-  const audioExt = audioExtension(format);
-  return Boolean(audioExt && audioExt !== "none");
+  const note = String(format.format_note || "").toLowerCase();
+  return Number(format.height || 0) > 0
+    || Number(format.width || 0) > 0
+    || note.includes("video");
+}
+
+function hasAudioTrack(format) {
+  const codec = normalizeCodec(format.acodec);
+  if (codec === "none") {
+    return false;
+  }
+  if (codec) {
+    return true;
+  }
+
+  const audioExt = String(format.audio_ext || "").toLowerCase();
+  const note = String(format.format_note || "").toLowerCase();
+  return Boolean(
+    (audioExt && audioExt !== "none")
+    || note.includes("audio")
+    || inferAudioCodec(format)
+  );
 }
 
 function hasExplicitAudioCodec(format) {
   const codec = normalizeCodec(format.acodec);
   return Boolean(codec && codec !== "none");
+}
+
+function isUnknownProgressiveFormat(format) {
+  const ext = String(format.ext || "").toLowerCase();
+  return IPHONE_VIDEO_EXTENSIONS.has(ext)
+    && isSimpleDownloadFormat(format)
+    && !normalizeCodec(format.vcodec)
+    && !normalizeCodec(format.acodec)
+    && !hasAudioTrack(format);
 }
 
 function explainFallback(formats, profile, directSourceUrl) {
@@ -1417,3 +1478,16 @@ function isUsableUrl(value) {
 
   return value.startsWith("http://") || value.startsWith("https://");
 }
+
+function isMainModule() {
+  if (!process.argv[1]) {
+    return false;
+  }
+
+  return import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+}
+
+export {
+  buildDownloadArgs,
+  resolveEntryPlan
+};
