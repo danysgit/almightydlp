@@ -764,6 +764,7 @@ function resolveEntryPlan(entry, profile, index) {
     isUsableUrl(format.url) && isUnknownProgressiveFormat(format)
   ));
   const videoCandidate = chooseVideoDownloadCandidate({
+    entry,
     progressiveFormats,
     audioFormats,
     videoOnlyFormats,
@@ -810,14 +811,19 @@ function resolveEntryPlan(entry, profile, index) {
 }
 
 function chooseVideoDownloadCandidate({
+  entry,
   progressiveFormats,
   audioFormats,
   videoOnlyFormats,
   unknownProgressiveFormats
 }) {
+  const trustedUnknownProgressive = isTwitterEntry(entry)
+    ? chooseUnknownProgressiveCandidate(unknownProgressiveFormats)
+    : null;
+
   return choosePreferredNativeCandidate(
     chooseNativeIphoneMergedCandidate(videoOnlyFormats, audioFormats),
-    chooseNativeIphoneProgressiveCandidate(progressiveFormats)
+    chooseNativeIphoneProgressiveCandidate(progressiveFormats) || trustedUnknownProgressive
   ) || chooseUnknownProgressiveCandidate(unknownProgressiveFormats);
 }
 
@@ -1175,6 +1181,11 @@ function isUnknownProgressiveFormat(format) {
     && !normalizeCodec(format.vcodec)
     && !normalizeCodec(format.acodec)
     && !hasAudioTrack(format);
+}
+
+function isTwitterEntry(entry) {
+  const extractor = String(entry?.extractor_key || entry?.extractor || "").trim().toLowerCase();
+  return extractor === "twitter";
 }
 
 function explainFallback(formats, profile, directSourceUrl) {

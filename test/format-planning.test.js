@@ -14,11 +14,13 @@ after(async () => {
   await fs.rm(appDataDir, { recursive: true, force: true });
 });
 
-test("X split streams pair the actual audio rendition with video", () => {
+test("X uses its highest-quality progressive MP4 instead of staging split HLS streams", () => {
+  const progressiveUrl = "https://video.twimg.com/video/vid/avc1/3840x2160/video.mp4";
   const plan = resolveEntryPlan({
     id: "x-sample",
     title: "X sample",
     webpage_url: "https://x.com/example/status/1",
+    extractor_key: "Twitter",
     formats: [
       {
         format_id: "hls-audio-128000-Audio",
@@ -43,27 +45,40 @@ test("X split streams pair the actual audio rendition with video", () => {
         url: "https://video.twimg.com/video/vid/avc1/720x600/video.mp4"
       },
       {
-        format_id: "hls-588",
+        format_id: "http-25128",
+        ext: "mp4",
+        protocol: "https",
+        vcodec: null,
+        acodec: null,
+        audio_ext: "none",
+        height: 2160,
+        tbr: 25128,
+        url: progressiveUrl
+      },
+      {
+        format_id: "hls-15068",
         ext: "mp4",
         protocol: "m3u8_native",
         vcodec: "avc1.64001F",
         acodec: "none",
         audio_ext: "none",
-        height: 600,
-        tbr: 588,
-        url: "https://video.twimg.com/video/pl/avc1/720x600/video.m3u8"
+        height: 2160,
+        tbr: 15068,
+        url: "https://video.twimg.com/video/pl/avc1/3840x2160/video.m3u8"
       }
     ]
   }, "video", 1);
 
-  assert.equal(plan.payload.formatSelector, "hls-588+hls-audio-128000-Audio");
-  assert.equal(plan.payload.streamDirect, false);
-  assert.equal(plan.item.status, "processing-required");
+  assert.equal(plan.payload.formatSelector, "http-25128");
+  assert.equal(plan.payload.directUrl, progressiveUrl);
+  assert.equal(plan.payload.streamDirect, true);
+  assert.equal(plan.item.status, "ready");
+  assert.equal(plan.item.formatLabel, "2160p • mp4");
 
   const args = buildDownloadArgs(plan.payload, "/tmp/x-sample.mp4");
   assert.deepEqual(args.slice(args.indexOf("-f"), args.indexOf("-f") + 2), [
     "-f",
-    "hls-588+hls-audio-128000-Audio"
+    "http-25128"
   ]);
 });
 
