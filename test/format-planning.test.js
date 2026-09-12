@@ -8,10 +8,78 @@ const appDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "almightydlp-test-"))
 process.env.APPDATA_DIR = appDataDir;
 process.env.DOWNLOAD_TOKEN_SECRET = "format-planning-test-secret";
 
-const { buildDownloadArgs, resolveEntryPlan } = await import("../server.js");
+const { buildDownloadArgs, buildInspectArgs, resolveEntryPlan } = await import("../server.js");
 
 after(async () => {
   await fs.rm(appDataDir, { recursive: true, force: true });
+});
+
+test("inspection and downloads use Node and the appdata cache for YouTube challenges", () => {
+  const sourceUrl = "https://www.youtube.com/watch?v=example";
+  const commandArgs = [
+    buildInspectArgs(sourceUrl),
+    buildDownloadArgs({ profile: "video", sourceUrl }, "/tmp/youtube.mp4"),
+    buildDownloadArgs({ profile: "audio", sourceUrl }, "/tmp/youtube.mp3")
+  ];
+
+  for (const args of commandArgs) {
+    assert.equal(args.filter((arg) => arg === "--js-runtimes").length, 1);
+    assert.equal(args[args.indexOf("--js-runtimes") + 1], `node:${process.execPath}`);
+    assert.equal(args[args.indexOf("--cache-dir") + 1], path.join(appDataDir, "cache", "yt-dlp"));
+    assert.equal(args.at(-1), sourceUrl);
+  }
+});
+
+test("YouTube merges its highest compatible video with AAC audio", () => {
+  const sourceUrl = "https://www.youtube.com/watch?v=example";
+  const plan = resolveEntryPlan({
+    id: "youtube-sample",
+    title: "YouTube sample",
+    webpage_url: sourceUrl,
+    extractor_key: "Youtube",
+    formats: [
+      {
+        format_id: "18",
+        ext: "mp4",
+        protocol: "https",
+        vcodec: "avc1.42001E",
+        acodec: "mp4a.40.2",
+        height: 360,
+        url: "https://media.example/youtube-progressive.mp4"
+      },
+      {
+        format_id: "137",
+        ext: "mp4",
+        protocol: "https",
+        vcodec: "avc1.640028",
+        acodec: "none",
+        audio_ext: "none",
+        height: 1080,
+        url: "https://media.example/youtube-video.mp4"
+      },
+      {
+        format_id: "140",
+        ext: "m4a",
+        protocol: "https",
+        vcodec: "none",
+        acodec: "mp4a.40.2",
+        audio_ext: "m4a",
+        abr: 128,
+        url: "https://media.example/youtube-audio.m4a"
+      }
+    ]
+  }, "video", 1);
+
+  assert.equal(plan.payload.formatSelector, "137+140");
+  assert.equal(plan.payload.streamDirect, false);
+  assert.equal(plan.item.directUrl, "");
+  assert.equal(plan.item.status, "processing-required");
+  assert.equal(plan.item.fileExtension, "mp4");
+
+  const args = buildDownloadArgs(plan.payload, "/tmp/youtube.mp4");
+  assert.equal(args[args.indexOf("-f") + 1], "137+140");
+  assert.equal(args[args.indexOf("--merge-output-format") + 1], "mp4");
+  assert.equal(args.at(-1), sourceUrl);
 });
 
 test("X uses its highest-quality progressive MP4 instead of staging split HLS streams", () => {

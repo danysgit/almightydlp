@@ -1,12 +1,12 @@
 FROM node:22-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
-ARG YTDLP_MIN_VERSION=2026.06.09
+ARG YTDLP_MIN_VERSION=2026.08.19
 
 RUN apt-get update \
   && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip tini ca-certificates gosu \
-  && python3 -m pip install --upgrade --no-cache-dir --break-system-packages "yt-dlp>=${YTDLP_MIN_VERSION}" \
+  && python3 -m pip install --upgrade --no-cache-dir --break-system-packages "yt-dlp[default]>=${YTDLP_MIN_VERSION}" \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

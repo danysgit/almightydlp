@@ -16,6 +16,14 @@ Public app: [almightydlp.com](https://almightydlp.com)
 
 ## Quick start
 
+For a local install, use Node.js 22 or newer, Python 3.11 or newer, and FFmpeg (including `ffprobe`). Install yt-dlp with its default dependencies so the matching YouTube challenge scripts are available:
+
+```bash
+python3 -m pip install --upgrade "yt-dlp[default]>=2026.08.19"
+```
+
+Ensure `yt-dlp` and `ffmpeg` are on `PATH`, or set `YTDLP_BINARY` and `FFMPEG_BINARY` to their executable paths. AlmightyDLP enables the Node executable running the app as yt-dlp's JavaScript runtime and stores its cache under `APPDATA_DIR/cache/yt-dlp`. The Docker image includes these dependencies. See yt-dlp's [YouTube JavaScript setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS) for details.
+
 ```bash
 npm install
 npm run dev

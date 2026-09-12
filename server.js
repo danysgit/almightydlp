@@ -1305,6 +1305,7 @@ function defaultExtensionForProfile(profile) {
 
 function buildInspectArgs(url) {
   const args = [
+    ...buildYtDlpCommonArgs(),
     "--dump-single-json",
     "--skip-download",
     "--no-warnings"
@@ -1326,6 +1327,7 @@ function buildInspectArgs(url) {
 
 function buildDownloadArgs(payload, outputTemplate) {
   const args = [
+    ...buildYtDlpCommonArgs(),
     "--no-warnings",
     "--no-progress",
     "--restrict-filenames",
@@ -1360,6 +1362,13 @@ function buildDownloadArgs(payload, outputTemplate) {
 
   args.push(payload.sourceUrl);
   return args;
+}
+
+function buildYtDlpCommonArgs() {
+  return [
+    "--js-runtimes", `node:${process.execPath}`,
+    "--cache-dir", path.join(config.appDataDir, "cache", "yt-dlp")
+  ];
 }
 
 function shouldPassFfmpegLocation(value) {
@@ -1506,5 +1515,6 @@ function isMainModule() {
 
 export {
   buildDownloadArgs,
+  buildInspectArgs,
   resolveEntryPlan
 };
